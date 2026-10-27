@@ -20,7 +20,7 @@ const HomeGrid: React.FC<Props> = ({ onNavigate, lang, darkMode, user }) => {
     { id: 'diet', icon: '🥗', label: t.nav_diet, color: 'bg-emerald-500' },
     { id: 'cookbook', icon: '👨‍🍳', label: t.cookbook_title, color: 'bg-orange-600' }, 
     { id: 'food_recognition', icon: '📖', label: t.nav_food_rec, color: 'bg-indigo-600' },
-    { id: 'calculator', icon: '🧮', label: t.nav_calculator, color: 'bg-pink-500' }, 
+    { id: 'calculator', icon: '🧮', label: lang === 'bn' ? 'ক্যালকুলেটর ও অ্যাসেসমেন্ট' : `${t.nav_calculator} & Assessments`, color: 'bg-pink-500' }, 
     { id: 'leaderboard', icon: '🏆', label: t.nav_leaderboard, color: 'bg-amber-500' },
     { id: 'community', icon: '🌍', label: t.nav_community, color: 'bg-purple-500' },
     { id: 'family_pot', icon: '🍲', label: t.nav_family, color: 'bg-orange-500' },

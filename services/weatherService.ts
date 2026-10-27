@@ -43,8 +43,7 @@ export class WeatherService {
         sunset: daily.sunset[0]
       };
 
-    } catch (error) {
-      console.error("Weather fetch failed", error);
+    } catch {
       return {
         temp: 25,
         humidity: 60,

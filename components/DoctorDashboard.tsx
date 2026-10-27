@@ -354,7 +354,20 @@ const DoctorDashboard: React.FC<Props> = ({ user, profile, currentPhase, lang, d
                           profile={selectedPatient.profile} 
                           lang={lang} 
                           darkMode={darkMode} 
-                          onProceed={() => setActiveTab('compliance')} 
+                          onProceed={async (customizedProfile) => {
+                            const updatedProfile = customizedProfile || selectedPatient.profile;
+                            const updatedPatient = { ...selectedPatient, profile: updatedProfile };
+                            setSelectedPatient(updatedPatient);
+                            setPatients(prev => prev.map(pt => pt.id === updatedPatient.id ? updatedPatient : pt));
+                            setActiveTab('diet');
+                            setPatientChart(null);
+                            try {
+                              const newChart = await gemini.analyzeHealthAndPhase(updatedProfile, selectedPatient.phase, 1, lang);
+                              setPatientChart(newChart);
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }} 
                         />
                      </div>
                   ) : (
@@ -373,6 +386,7 @@ const DoctorDashboard: React.FC<Props> = ({ user, profile, currentPhase, lang, d
                                     setSelectedPatient({ ...selectedPatient, profile: updated });
                                 }}
                                 initialChart={patientChart}
+                                onOpenTrafficLightGuide={() => setActiveTab('report')}
                             />
                         ) : (
                             <div className="py-20 text-center">

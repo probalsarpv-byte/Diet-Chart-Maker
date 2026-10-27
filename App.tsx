@@ -59,6 +59,7 @@ const App: React.FC = () => {
   const [showPaywall, setShowPaywall] = useState(false); 
   const [blockedFeature, setBlockedFeature] = useState<string>(''); 
   const [showReminder, setShowReminder] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState<'report' | 'traffic_light'>('report');
 
   const gemini = new GeminiService();
 
@@ -70,6 +71,7 @@ const App: React.FC = () => {
   });
 
   const t = translations[lang];
+  const isBn = lang === 'bn';
 
   useEffect(() => {
     if (darkMode) {
@@ -109,9 +111,10 @@ const App: React.FC = () => {
 
   const handleAssessmentComplete = (p: HealthProfile) => {
     setProfile(p);
+    setAnalysisStep('report');
     setAppState('analysis'); 
-    setCurrentView('diet'); 
-    fetchChart(p, Phase.DETOX);
+    setCurrentView('diet');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleLogin = (loggedInUser: User) => {
@@ -140,19 +143,19 @@ const App: React.FC = () => {
   };
 
   const handleNavigation = (view: View) => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     if (view === 'food_recognition') {
         setCurrentView(view);
         return;
     }
 
-    if (!user && view !== 'home' && view !== 'assessment_gate') {
+    if (!user && view !== 'home' && view !== 'assessment_gate' && view !== 'calculator') {
        setCurrentView('assessment_gate');
        return;
     }
 
     const restrictedFeatures: View[] = ['diet', 'ar_guide', 'checklist', 'profile', 'family_pot', 'dinacharya', 'cookbook'];
     
-    // Calculator is intentionally left out of restricted features so all users can access
     if (restrictedFeatures.includes(view) && !profile && !user?.id?.startsWith('DOC-')) {
       setCurrentView('assessment_gate');
       return;
@@ -164,15 +167,11 @@ const App: React.FC = () => {
         return;
     }
 
-    if (view === 'home' || view === 'leaderboard' || view === 'community' || view === 'messages' || view === 'assessment_gate' || view === 'marketplace' || view === 'calculator') {
-      setCurrentView(view);
-      return;
-    }
-
     setCurrentView(view);
   };
 
   const handleBack = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     setCurrentView('home');
   };
 
@@ -187,25 +186,19 @@ const App: React.FC = () => {
   };
 
   const NavItem = ({ view, label, icon }: { view: View, label: string, icon: React.ReactNode }) => {
-    const isLocked = false; // Premium features unconditionally unlocked
-
-
-    const showLock = (view === 'family_pot' || view === 'ar_guide' || view === 'dinacharya' || view === 'cookbook') && isLocked;
-
     return (
       <button
         onClick={() => handleNavigation(view)}
-        className={`flex flex-col items-center gap-1.5 transition-all px-2 md:px-4 py-2 rounded-2xl ${
+        className={`flex flex-col items-center gap-1 transition-all px-2.5 py-1.5 rounded-2xl ${
           currentView === view 
-            ? (darkMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-white shadow-lg shadow-slate-900/20 scale-105')
-            : (darkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-900')
+            ? (darkMode ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-900 text-white shadow-md')
+            : (darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')
         }`}
       >
         <div className="relative">
           {icon}
-          {showLock && <span className="absolute -top-2 -right-2 text-[10px]">🔒</span>}
         </div>
-        <span className="text-[9px] md:text-[10px] font-black uppercase tracking-tight whitespace-nowrap">{label}</span>
+        <span className="text-[10px] font-bold tracking-tight whitespace-nowrap">{label}</span>
       </button>
     );
   };
@@ -272,12 +265,27 @@ const App: React.FC = () => {
     }
 
     if (appState === 'analysis' && profile && !user?.id.startsWith('DOC-')) {
-       return <AnalysisReport profile={profile} lang={lang} darkMode={darkMode} onProceed={() => setAppState('dashboard')} />;
+       return (
+         <AnalysisReport
+           profile={profile}
+           lang={lang}
+           darkMode={darkMode}
+           initialStep={analysisStep}
+           onProceed={(customizedProfile) => {
+             const finalProfile = customizedProfile || profile;
+             setProfile(finalProfile);
+             setCurrentChart(null);
+             setAppState('dashboard');
+             setCurrentView('diet');
+             fetchChart(finalProfile, currentPhase);
+           }}
+         />
+       );
     }
 
     if (appState === 'dashboard' || profile || user?.id?.startsWith('DOC-')) {
       return (
-        <div className="animate-in fade-in slide-in-from-bottom duration-700 gpu-accelerated">
+        <div className="animate-in fade-in duration-500">
           {currentView === 'profile' && user && (profile || user.id.startsWith('DOC-')) && (
             <ProfileView 
               user={user} 
@@ -307,10 +315,15 @@ const App: React.FC = () => {
               onShowPaywall={() => { setBlockedFeature(t.diet_chart); setShowPaywall(true); }}
               onUpdateProfile={setProfile}
               initialChart={currentChart}
+              onOpenTrafficLightGuide={() => {
+                setAnalysisStep('traffic_light');
+                setAppState('analysis');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
             />
           )}
           {currentView === 'checklist' && currentChart && profile && (
-            <div className="max-w-4xl mx-auto space-y-8">
+            <div className="max-w-4xl mx-auto space-y-6">
               <ProgressTracker 
                 profile={profile} 
                 chart={currentChart} 
@@ -385,38 +398,76 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <nav className={`sticky top-0 z-50 border-b py-3 px-4 md:px-8 backdrop-blur-md transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-100'}`}>
+      {/* Top Navigation Bar (Desktop Full Navigation + Mobile Compact Header) */}
+      <nav className={`sticky top-0 z-50 border-b py-2.5 px-3 md:px-8 backdrop-blur-md transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-100'}`}>
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-2 md:gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {currentView !== 'home' && (
               <button onClick={handleBack} className={`p-2 rounded-xl transition-all hover:scale-105 active:scale-95 ${darkMode ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'}`} aria-label="Back">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
               </button>
             )}
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentView('home')}>
-              <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center font-bold text-lg md:text-xl serif italic shadow-lg ${darkMode ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/10' : 'bg-slate-900 text-white'}`}>
+              <div className={`w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center font-bold text-base md:text-lg serif italic shadow-md ${darkMode ? 'bg-emerald-500 text-slate-950' : 'bg-slate-900 text-white'}`}>
                 {profile ? profile.dosha[0] : 'A'}
               </div>
-              <span className={`text-lg md:text-xl font-bold tracking-tight serif italic hidden xs:block ${darkMode ? 'text-white' : 'text-slate-800'}`}>Precision Nutrition</span>
+              <span className={`text-base md:text-lg font-bold tracking-tight serif italic ${darkMode ? 'text-white' : 'text-slate-800'}`}>Precision Nutrition</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
+          {/* Desktop Horizontal Navigation Links (Hidden on Mobile) */}
+          <div className="hidden lg:flex items-center gap-5 text-xs font-bold">
+            <button
+              onClick={() => handleNavigation('home')}
+              className={`py-1 border-b-2 transition-colors ${currentView === 'home' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent opacity-70 hover:opacity-100'}`}
+            >
+              {isBn ? 'হোম' : 'Home'}
+            </button>
+            <button
+              onClick={() => handleNavigation('diet')}
+              className={`py-1 border-b-2 transition-colors ${currentView === 'diet' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent opacity-70 hover:opacity-100'}`}
+            >
+              {t.nav_diet}
+            </button>
+            <button
+              onClick={() => handleNavigation('food_recognition')}
+              className={`py-1 border-b-2 transition-colors ${currentView === 'food_recognition' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent opacity-70 hover:opacity-100'}`}
+            >
+              {t.nav_food_rec}
+            </button>
+            <button
+              onClick={() => handleNavigation('checklist')}
+              className={`py-1 border-b-2 transition-colors ${currentView === 'checklist' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent opacity-70 hover:opacity-100'}`}
+            >
+              {t.daily_checklist}
+            </button>
+            <button
+              onClick={() => handleNavigation('calculator')}
+              className={`py-1 border-b-2 transition-colors ${currentView === 'calculator' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent opacity-70 hover:opacity-100'}`}
+            >
+              {t.nav_calculator}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 md:gap-3">
             {user && (
-               <div className="flex flex-col items-end mr-2">
-                  <span className="text-[8px] font-black uppercase tracking-tighter text-amber-500">{user.points} Credits</span>
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${darkMode ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+               <div className="hidden sm:flex flex-col items-end mr-1">
+                  <span className="text-[9px] font-bold text-amber-500 tabular-nums">{user.points} Credits</span>
+                  <span className="text-[10px] font-semibold opacity-70">
                     {user.id?.startsWith('DOC-') ? 'Doctor' : 'Premium'}
                   </span>
                </div>
             )}
             {user?.id?.startsWith('DOC-') && (
-               <button onClick={() => setShowDoctorDashboard(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 md:px-5 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] md:text-xs transition-all active:scale-95 shadow-lg">Dashboard</button>
+               <button onClick={() => setShowDoctorDashboard(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95">Dashboard</button>
             )}
-            <button onClick={() => setShowSOS(true)} className="bg-red-600 hover:bg-red-50 text-white px-3 md:px-5 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] md:text-xs animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all active:scale-95 whitespace-nowrap">{t.sos_button}</button>
-            <div className="flex items-center gap-2">
+            <button onClick={() => setShowSOS(true)} className="bg-red-600 hover:bg-red-500 text-white px-2.5 md:px-4 py-1.5 rounded-xl font-bold text-[10px] md:text-xs transition-all active:scale-95 whitespace-nowrap">{t.sos_button}</button>
+            <div className="flex items-center gap-1.5">
               <div className="relative">
-                <button onClick={() => setShowLanguageMenu(!showLanguageMenu)} className={`p-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${darkMode ? 'bg-slate-800 border-slate-700 text-emerald-400' : 'bg-white border-slate-200 text-slate-900'}`}><span className="text-lg">🌐</span></button>
+                <button onClick={() => setShowLanguageMenu(!showLanguageMenu)} className={`p-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${darkMode ? 'bg-slate-800 border-slate-700 text-emerald-400' : 'bg-white border-slate-200 text-slate-900'}`}>
+                  <span className="text-sm">🌐</span>
+                  <span className="hidden sm:inline uppercase text-[10px]">{lang}</span>
+                </button>
                 {showLanguageMenu && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowLanguageMenu(false)} />
@@ -432,43 +483,62 @@ const App: React.FC = () => {
                 )}
               </div>
               <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-xl transition-all border ${darkMode ? 'bg-slate-800 border-slate-700 text-yellow-400' : 'bg-white border-slate-200 text-slate-600 shadow-sm'}`}>
-                {darkMode ? <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="3" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>}
+                {darkMode ? <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="3" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>}
               </button>
             </div>
-            {user && <button onClick={() => { setProfile(null); setUser(null); setAppState('onboarding'); setCurrentView('home'); setShowDoctorDashboard(false); }} className={`p-2 md:px-4 md:py-2 text-sm font-bold rounded-lg transition-colors border ${darkMode ? 'text-red-400 hover:bg-red-950/30 border-red-900/50' : 'text-red-600 hover:bg-red-50 border-red-100'}`}><span className="hidden md:inline">Logout</span><span className="md:hidden">🚪</span></button>}
+            {user && <button onClick={() => { setProfile(null); setUser(null); setAppState('onboarding'); setCurrentView('home'); setShowDoctorDashboard(false); }} className={`p-2 md:px-3 md:py-1.5 text-xs font-bold rounded-xl transition-colors border ${darkMode ? 'text-red-400 hover:bg-red-950/30 border-red-900/50' : 'text-red-600 hover:bg-red-50 border-red-100'}`}><span className="hidden md:inline">Logout</span><span className="md:hidden">🚪</span></button>}
           </div>
         </div>
       </nav>
 
-      <main className="flex-1 py-8 md:py-12 px-4 md:px-8 max-w-7xl mx-auto w-full pb-32">
+      {/* Main Content Container (Compact padding on Mobile, Spacious on Desktop) */}
+      <main className="flex-1 py-4 md:py-8 px-3 md:px-8 max-w-7xl mx-auto w-full pb-24 lg:pb-12">
         {renderContent()}
-        {profile && currentView !== 'home' && currentView !== 'login' && <SmartBazaar profile={profile} currentPhase={currentPhase} lang={lang} darkMode={darkMode} />}
       </main>
 
-      {(user && currentView !== 'home' && currentView !== 'login') && (
-        <div className={`fixed bottom-0 inset-x-0 z-[60] border-t backdrop-blur-xl py-3 px-4 transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-100 shadow-2xl shadow-black/20'}`}>
-          <div className="max-w-xl mx-auto flex justify-between items-center overflow-x-auto gap-1 md:gap-4 scrollbar-hide">
-            <button onClick={() => setCurrentView('home')} className="p-2 opacity-50 hover:opacity-100 transition-opacity">
-               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            </button>
-            <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-            <NavItem view="profile" label={t.nav_profile} icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>} />
-            <NavItem view="ar_guide" label={t.nav_ar} icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>} />
-            <NavItem view="dinacharya" label={t.nav_sun} icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>} />
-            <NavItem view="messages" label={t.nav_chat} icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>} />
+      {/* Mobile App Bottom Navigation Dock (Always available on mobile/tablet) */}
+      {currentView !== 'login' && (
+        <div className={`lg:hidden fixed bottom-0 inset-x-0 z-[60] border-t backdrop-blur-xl py-2 px-3 transition-colors duration-300 ${darkMode ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'}`}>
+          <div className="max-w-md mx-auto flex justify-between items-center gap-1">
+            <NavItem
+              view="home"
+              label={isBn ? 'হোম' : 'Home'}
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>}
+            />
+            <NavItem
+              view="diet"
+              label={isBn ? 'ডায়েট চার্ট' : 'Diet'}
+              icon={<span className="text-base leading-none">🥗</span>}
+            />
+            <NavItem
+              view="food_recognition"
+              label={isBn ? 'ফুড গ্লোসারি' : 'Glossary'}
+              icon={<span className="text-base leading-none">📖</span>}
+            />
+            <NavItem
+              view="checklist"
+              label={isBn ? 'ট্র্যাকার' : 'Tracker'}
+              icon={<span className="text-base leading-none">📝</span>}
+            />
+            <NavItem
+              view="profile"
+              label={t.nav_profile}
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+            />
           </div>
         </div>
       )}
 
-      <footer className={`py-16 md:py-32 transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-900 text-slate-500'}`}>
-        <div className="max-w-7xl mx-auto px-8 grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-16 text-sm">
-          <div className="space-y-4">
-            <h4 className="text-white font-bold text-lg serif italic">Precision Nutrition Science</h4>
+      {/* Desktop Footer (Hidden on small mobile screens to prevent scroll clutter) */}
+      <footer className={`hidden md:block py-10 transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-900 text-slate-500'}`}>
+        <div className="max-w-7xl mx-auto px-8 grid grid-cols-1 md:grid-cols-2 gap-8 text-xs">
+          <div className="space-y-2">
+            <h4 className="text-white font-bold text-base serif italic">Precision Nutrition Science</h4>
             <p className="leading-relaxed">Clinical-grade biological mapping for sustainable health.</p>
           </div>
-          <div className="space-y-4">
-            <h4 className="text-white font-bold text-lg">Legal</h4>
-            <p className="leading-relaxed italic">Consult a medical professional. This AI tool is for professional-assisted support.</p>
+          <div className="space-y-2">
+            <h4 className="text-white font-bold text-base">Legal</h4>
+            <p className="leading-relaxed italic">Consult a medical professional. This clinical nutrition tool supports personalized dietary planning.</p>
           </div>
         </div>
       </footer>

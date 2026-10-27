@@ -31,7 +31,7 @@ export interface User {
   email: string;
   photoUrl?: string;
   isPro: boolean; 
-  isFamilyManager?: boolean; // New flag
+  isFamilyManager?: boolean;
   trialStartDate: string;
   points: number; 
   badges: Badge[]; 
@@ -117,10 +117,10 @@ export interface DailyAdherence {
   score: number; 
   items: ChecklistItem[];
   pointsEarned: number;
-  waterIntake?: number; // glasses
-  weight?: number; // kg
-  energyLevel?: number; // 1-10
-  digestionRating?: number; // 1-10
+  waterIntake?: number;
+  weight?: number;
+  energyLevel?: number;
+  digestionRating?: number;
   notes?: string;
 }
 
@@ -133,6 +133,66 @@ export interface AssessmentAnalysis {
   alkalineScore: number;
   healthSummary: string;
   dietImpact?: string; 
+}
+
+// --- New Clinical Diet Maker Interfaces ---
+
+export type TrafficLightZone = 'green' | 'yellow' | 'red';
+export type FoodCategory = 'Proteins' | 'Vegetables & Greens' | 'Grains & Carbs' | 'Healthy Fats & Seeds' | 'Fruits & Snacks';
+
+export interface TrafficLightFoodItem {
+  id: string;
+  nameEn: string;
+  nameBn: string;
+  category: FoodCategory;
+  zone: TrafficLightZone;
+  caloriesPer100g: number;
+  clinicalReasonEn: string;
+  clinicalReasonBn: string;
+  isVegetableCarb?: boolean;
+  isCerealCarb?: boolean;
+}
+
+export interface TrafficLightGuide {
+  items: TrafficLightFoodItem[];
+  recommendedMealFrequency: 3 | 4;
+  mealFrequencyReasonEn: string;
+  mealFrequencyReasonBn: string;
+  recommendedDinnerCarbRule: 'vegetable_carbs' | 'cereal_allowed' | 'no_carbs';
+  dinnerCarbReasonEn: string;
+  dinnerCarbReasonBn: string;
+  hasHypoacidity: boolean;
+  clinicalSummaryEn: string;
+  clinicalSummaryBn: string;
+}
+
+export interface FatOilAllocation {
+  totalDailyFatGrams: number;
+  cookingFatGrams: number;
+  dietarySourceFatGrams: number;
+  gheeGrams: number;
+  cookingOilGrams: number;
+  recommendedOilType: string;
+  dietaryFatSources: string[];
+  clinicalInstruction: string;
+}
+
+export interface FoodExchangeRow {
+  category: string;
+  primaryFood: string;
+  primaryPortion: string;
+  greenSubstitutes: string[];
+  yellowSubstitutes: string[];
+  clinicalNote: string;
+}
+
+export interface DetoxWaterItem {
+  timing: 'Morning (Empty Stomach)' | 'Pre-Heavy Meal (Hypoacidity Shot)' | 'Night (Metabolic & Gut Calm)' | string;
+  name: string;
+  ingredients: string[];
+  preparation: string;
+  clinicalBenefit: string;
+  isHypoaciditySpecific?: boolean;
 }
 
 export interface HealthProfile {
@@ -169,6 +229,12 @@ export interface HealthProfile {
     latitude: number;
     longitude: number;
   };
+  // Customizations from Traffic Light Food Guide
+  trafficLightGuide?: TrafficLightGuide;
+  selectedFoods?: string[];
+  mealFrequency?: 3 | 4;
+  dinnerCarbRule?: 'vegetable_carbs' | 'cereal_allowed' | 'no_carbs';
+  hasHypoacidity?: boolean;
 }
 
 export interface ChatMessage {
@@ -185,10 +251,17 @@ export interface JournalEntry {
 
 export interface Meal {
   time: string;
+  mealSlot?: string;
   mealName: string;
   description: string;
   quantity: string;
-  calories: string; // Added calories field
+  calories: string;
+  macroBreakdown?: {
+    protein: string;
+    carbs: string;
+    fats: string;
+    carbSourceType?: string;
+  };
   benefits: string[];
 }
 
@@ -200,21 +273,27 @@ export interface DailyPlan {
 export interface Supplement {
   name: string;
   dosage: string;
+  timing?: string;
   rationale: string;
+  medicationSynergy?: string;
   phaseRole: string;
   tags: string[];
 }
 
 export interface StaplesAdvice {
   salt: string;
+  saltGramsPerDay?: string;
   oil: string;
   water: string;
+  waterLitersPerDay?: string;
 }
 
 export interface PhysicalActivity {
-  type: 'Yoga' | 'Exercise' | 'Pranayama';
+  type: 'Yoga' | 'Exercise' | 'Pranayama' | 'Cardio' | 'Strength';
   name: string;
   duration: string;
+  frequency?: string;
+  clinicalReason?: string;
   instructions: string;
   visualCue: string; 
 }
@@ -243,6 +322,10 @@ export interface DietPhaseChart {
   currentWeek: number; 
   phaseName: string;
   focus: string;
+  mealFrequency?: 3 | 4;
+  totalDailyCalories?: number;
+  calorieSplitSummary?: string;
+  dinnerCarbStrategy?: string;
   medicalSafetyNote?: string;
   weatherAdaptation?: {
     shieldMode: string; 
@@ -252,6 +335,9 @@ export interface DietPhaseChart {
   };
   drugFoodInteractions?: InteractionWarning[];
   weeklySchedule: DailyPlan[];
+  fatOilAllocation?: FatOilAllocation;
+  foodExchangeTable?: FoodExchangeRow[];
+  detoxWaterProtocol?: DetoxWaterItem[];
   recommendations: string[];
   forbiddenFoods: string[];
   supplements: Supplement[];
