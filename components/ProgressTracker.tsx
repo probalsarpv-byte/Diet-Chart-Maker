@@ -6,7 +6,7 @@ import { CheckCircle, Droplets, Activity, Scale, Utensils, Calendar } from 'luci
 
 interface Props {
   profile: HealthProfile;
-  chart: DietPhaseChart;
+  chart?: DietPhaseChart | null;
   lang: Language;
   darkMode?: boolean;
   onUpdate: (adherence: DailyAdherence) => void;
@@ -25,29 +25,38 @@ const ProgressTracker: React.FC<Props> = ({ profile, chart, lang, darkMode, onUp
   const [activeTab, setActiveTab] = useState<'log' | 'history'>('log');
 
   useEffect(() => {
-    // Generate checklist based on current day's diet chart
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    const todayPlan = chart.weeklySchedule.find(d => d.day === today) || chart.weeklySchedule[0];
-    
     const checklist: ChecklistItem[] = [];
-    
-    // 1. Meals
-    todayPlan.meals.forEach(m => {
-      checklist.push({ id: `meal-${m.mealName}`, label: m.mealName, completed: false });
-    });
-    
-    // 2. Supplements
-    chart.supplements.forEach(s => {
-      checklist.push({ id: `supp-${s.name}`, label: s.name, completed: false });
-    });
-    
-    // 3. Movement
-    chart.activities.forEach(a => {
-      checklist.push({ id: `act-${a.name}`, label: a.name, completed: false });
-    });
-    
-    // 4. Staples (Water/Salt) - Removed generic water item, now tracked separately
-    // checklist.push({ id: 'staple-water', label: 'Recommended Water Intake', completed: false });
+
+    if (chart && chart.weeklySchedule && chart.weeklySchedule.length > 0) {
+      // Generate checklist based on current day's diet chart
+      const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+      const todayPlan = chart.weeklySchedule.find(d => d.day === today) || chart.weeklySchedule[0];
+
+      // 1. Meals
+      todayPlan.meals.forEach(m => {
+        checklist.push({ id: `meal-${m.mealName}`, label: m.mealName, completed: false });
+      });
+
+      // 2. Supplements
+      (chart.supplements || []).forEach(s => {
+        checklist.push({ id: `supp-${s.name}`, label: s.name, completed: false });
+      });
+
+      // 3. Movement
+      (chart.activities || []).forEach(a => {
+        checklist.push({ id: `act-${a.name}`, label: a.name, completed: false });
+      });
+    } else {
+      const isBn = lang === 'bn';
+      checklist.push(
+        { id: 'meal-morning', label: isBn ? 'সকালের নাস্তা (প্রোটিন, সবজি ও সিডস)' : 'Morning Breakfast (Protein, Greens & Seeds)', completed: false },
+        { id: 'meal-lunch', label: isBn ? 'দুপুরের খাবার (৪০% কার্ব, ৩০% প্রোটিন, ৩০% ফ্যাট)' : 'Balanced Clinical Lunch (40:30:30 Macro)', completed: false },
+        { id: 'meal-dinner', label: isBn ? 'রাতের হালকা খাবার (সন্ধ্যা ৭-৮টার মধ্যে)' : 'Early Light Dinner (Before 8 PM)', completed: false },
+        { id: 'act-fasting', label: isBn ? 'ইন্টারমিটেন্ট ফাস্টিং প্রোটোকল অনুসরণ' : 'Intermittent Fasting Window Followed', completed: false },
+        { id: 'act-walk', label: isBn ? '৩০ মিনিট হাঁটা বা হালকা ব্যায়াম' : '30 Minutes Brisk Walk / Movement', completed: false },
+        { id: 'act-sleep', label: isBn ? 'রাত ১০:৩০ এর মধ্যে ঘুমানো' : 'Restorative Sleep by 10:30 PM', completed: false }
+      );
+    }
 
     setItems(checklist);
     
@@ -55,7 +64,7 @@ const ProgressTracker: React.FC<Props> = ({ profile, chart, lang, darkMode, onUp
     if (profile.weight) {
         setWeight(profile.weight);
     }
-  }, [chart, profile.weight]);
+  }, [chart, profile.weight, lang]);
 
   const toggleItem = (id: string) => {
     setItems(items.map(item => item.id === id ? { ...item, completed: !item.completed } : item));

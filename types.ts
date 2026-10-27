@@ -25,13 +25,18 @@ export interface ProfessionalProfile {
   experienceYears: number;
 }
 
+export type ProfileRoleType = 'self' | 'family' | 'doctor';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   photoUrl?: string;
   isPro: boolean; 
+  profileType?: ProfileRoleType;
   isFamilyManager?: boolean;
+  familyName?: string;
+  familyMembers?: FamilyMember[];
   trialStartDate: string;
   points: number; 
   badges: Badge[]; 

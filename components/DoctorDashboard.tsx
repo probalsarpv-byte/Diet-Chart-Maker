@@ -13,7 +13,8 @@ interface Props {
   currentPhase: Phase;
   lang: Language;
   darkMode?: boolean;
-  onClose: () => void;
+  inlineMode?: boolean;
+  onClose?: () => void;
   onSubscribeSuccess: () => void;
 }
 
@@ -25,7 +26,7 @@ interface PatientSummary {
   profile: HealthProfile;
 }
 
-const DoctorDashboard: React.FC<Props> = ({ user, profile, currentPhase, lang, darkMode, onClose, onSubscribeSuccess }) => {
+const DoctorDashboard: React.FC<Props> = ({ user, profile, currentPhase, lang, darkMode, inlineMode = false, onClose, onSubscribeSuccess }) => {
   const t = translations[lang];
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'subscribe' | 'monitoring' | 'result'>('list');
   const [isSubscribed, setIsSubscribed] = useState(user.isPro);
@@ -175,9 +176,9 @@ const DoctorDashboard: React.FC<Props> = ({ user, profile, currentPhase, lang, d
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-500">
-      <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl" onClick={onClose} />
-      <div className={`relative w-full max-w-6xl h-[90vh] rounded-[40px] shadow-2xl border flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-100'}`}>
+    <div className={inlineMode ? "w-full animate-in fade-in duration-500" : "fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-500"}>
+      {!inlineMode && <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl" onClick={onClose} />}
+      <div className={`relative w-full ${inlineMode ? 'rounded-[36px] shadow-xl' : 'max-w-6xl h-[90vh] rounded-[40px] shadow-2xl'} border flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-100'}`}>
         
         {viewMode !== 'create' && (
           <div className={`px-8 py-6 border-b flex justify-between items-center ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
@@ -187,18 +188,20 @@ const DoctorDashboard: React.FC<Props> = ({ user, profile, currentPhase, lang, d
                 <h2 className="text-xl font-bold serif italic">{t.doctor_dashboard}</h2>
                 <div className="flex items-center gap-2">
                   <p className="text-[9px] font-black uppercase tracking-widest text-blue-500">
-                    {isSubscribed ? 'Medical License: Professional Plus' : `Trial Active: ${7 - Math.floor(daysDiff)} Days Left`}
+                    {isSubscribed ? 'Medical License: Professional Plus' : `Trial Active: ${Math.max(1, 7 - Math.floor(daysDiff))} Days Left`}
                   </p>
                 </div>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200/50 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-            </button>
+            {!inlineMode && onClose && (
+              <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200/50 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            )}
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
+        <div className={`${inlineMode ? 'p-6 md:p-8' : 'flex-1 overflow-y-auto p-8 scrollbar-hide'}`}>
            {viewMode === 'list' ? (
              <div className="space-y-8 animate-in fade-in duration-300">
                 <div className="flex justify-between items-center">
