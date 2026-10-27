@@ -1,0 +1,9 @@
+{
+  "name": "Main copy Precision nutrition",
+  "description": "An advanced dietary platform integrating Ayurveda, microbiome health, and metabolic science to provide a personalized 4-phase nutritional journey.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ]
+}
