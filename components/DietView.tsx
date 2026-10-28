@@ -806,6 +806,78 @@ const DietView: React.FC<Props> = ({
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300">
               {/* Left 8 Cols on Desktop / Full Width on Mobile: Daily Meal Schedule */}
               <div className="lg:col-span-8 space-y-4">
+                {/* BD FCT Traffic Light Selected Foods Summary Strip */}
+                {(() => {
+                  const fullGuide = gemini.getDefaultTrafficLightGuide(profile);
+                  const selectedSet = new Set(profile.selectedFoods || []);
+                  const selectedItems = fullGuide.filter(
+                    (item) => selectedSet.has(item.id) && item.zone !== 'red'
+                  );
+                  const greenTotal = fullGuide.filter((i) => i.zone === 'green').length;
+                  const yellowTotal = fullGuide.filter((i) => i.zone === 'yellow').length;
+                  const redTotal = fullGuide.filter((i) => i.zone === 'red').length;
+
+                  return (
+                    <div
+                      className={`p-4 rounded-3xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        darkMode
+                          ? 'bg-slate-900/90 border-emerald-500/30'
+                          : 'bg-emerald-50/60 border-emerald-200/80 shadow-xs'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-extrabold">
+                          <span className="text-emerald-700 dark:text-emerald-300">
+                            🚦{' '}
+                            {isBn
+                              ? `বিডি ফুড কম্পোজিশন ট্রাফিক লাইট গাইড (${fullGuide.length}টি খাবার)`
+                              : `BD FCT Traffic Light Guide (${fullGuide.length} Foods)`}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-mono text-[11px]">
+                            🟢 {greenTotal} · 🟡 {yellowTotal} · 🔴 {redTotal}
+                          </span>
+                          {selectedItems.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-lg bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-mono text-[11px]">
+                              ✓ {isBn ? `নির্বাচিত: ${selectedItems.length}টি` : `Selected: ${selectedItems.length}`}
+                            </span>
+                          )}
+                        </div>
+                        {selectedItems.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {selectedItems.slice(0, 8).map((it) => (
+                              <span
+                                key={it.id}
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                  darkMode
+                                    ? 'bg-slate-800 text-slate-200'
+                                    : 'bg-white text-slate-700 border border-emerald-200/70'
+                                }`}
+                              >
+                                {it.icon || '🥗'} {isBn ? it.nameBn : it.nameEn}
+                              </span>
+                            ))}
+                            {selectedItems.length > 8 && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono opacity-70">
+                                +{selectedItems.length - 8} {isBn ? 'টি আরও' : 'more'}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {onOpenTrafficLightGuide && (
+                        <button
+                          type="button"
+                          onClick={onOpenTrafficLightGuide}
+                          className="px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs shrink-0 transition-all"
+                        >
+                          {isBn ? '🚦 খাবার পরিবর্তন করুন (৩৮১+ তালিকা)' : '🚦 Customize Foods (381+ List)'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div
                   className={`rounded-3xl border overflow-hidden ${
                     darkMode

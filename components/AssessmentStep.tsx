@@ -995,14 +995,40 @@ const AssessmentStep: React.FC<Props> = ({
         lang={lang}
         darkMode={darkMode}
         onComplete={(generatedProfile) => {
+          const enteredName = (generatedProfile.answers?.basic_name || '').trim();
+          const resolvedName =
+            enteredName || fullName.trim() || pendingUser?.name || (isBn ? 'রোগী' : 'Patient');
+
           const enrichedProfile: HealthProfile = {
             ...generatedProfile,
             answers: {
               ...generatedProfile.answers,
-              basic_name: pendingUser?.name || fullName || (isBn ? 'ইউজার' : 'User'),
+              basic_name: resolvedName,
             },
           };
-          onComplete(enrichedProfile, pendingUser?.name || fullName, pendingUser || undefined);
+
+          let finalUser: User | undefined = pendingUser
+            ? { ...pendingUser, name: resolvedName }
+            : user
+            ? { ...user, name: resolvedName }
+            : undefined;
+
+          if (finalUser && finalUser.profileType === 'family') {
+            const primaryMember: FamilyMember = {
+              id: `FAM-${Date.now()}`,
+              name: resolvedName,
+              relation: primaryRelation || (isBn ? 'পরিবার প্রধান' : 'Self'),
+              profile: enrichedProfile,
+            };
+            finalUser = {
+              ...finalUser,
+              isFamilyManager: true,
+              familyName: familyName.trim() || `${resolvedName}${isBn ? '-এর পরিবার' : "'s Family"}`,
+              familyMembers: [primaryMember],
+            };
+          }
+
+          onComplete(enrichedProfile, resolvedName, finalUser);
         }}
         onBackToCohortSelect={() => {
           setStepStage('cohort_select');

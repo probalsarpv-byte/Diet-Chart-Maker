@@ -147,11 +147,28 @@ export type FoodCategory = 'Proteins' | 'Vegetables & Greens' | 'Grains & Carbs'
 
 export interface TrafficLightFoodItem {
   id: string;
+  bdFctCode?: string;
+  bdSubCategory?: string;
+  bdSubCategoryBn?: string;
+  icon?: string;
   nameEn: string;
   nameBn: string;
+  scientific?: string;
   category: FoodCategory;
   zone: TrafficLightZone;
   caloriesPer100g: number;
+  proteinG?: number;
+  carbsG?: number;
+  fatG?: number;
+  fiberG?: number;
+  ironMg?: number;
+  calciumMg?: number;
+  sodiumMg?: number;
+  potassiumMg?: number;
+  zincMg?: number;
+  vitaminCMg?: number;
+  folateMcg?: number;
+  functionalBadges?: { key: string; icon: string; label: string }[];
   clinicalReasonEn: string;
   clinicalReasonBn: string;
   isVegetableCarb?: boolean;

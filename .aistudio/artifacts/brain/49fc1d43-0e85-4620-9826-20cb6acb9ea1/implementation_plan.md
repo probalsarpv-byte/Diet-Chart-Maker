@@ -1,109 +1,71 @@
-# Personal Gemini Account Integration & Maker-Checker Clinical Verification Engine
+# Unified Clinical Assessment Package Plan (35–42 Questions per Cohort)
 
-This update refines the AI architecture so users never see internal engine labels ("Free AI" vs. "Paid API"), can opt in to use their own **Gemini Account** across the entire application, and receive every output only after it passes a two-stage **Maker-Checker Clinical Verification** pipeline.
+## Overview
+Currently, selecting a life-stage cohort routes to a standalone 8-question form that bypasses the core 30+ foundational clinical questions (Anthropometrics, Ayurvedic Vikriti, Microbiome & Gut Health, Functional Metabolism, Inflammatory Index, Female Cycle Sync, Dietary Habits, and Medication History) and uses placeholder metrics for BMI, Dosha, and Microbiome scores.
 
-### User Review & Critical Decisions
-
-> [!IMPORTANT]
-> Internal cost and routing mechanics (`Free AI` vs. `Server API`) are completely hidden from the user interface. Users only see a single, clean option to connect and use their own Gemini account, and every AI response across the app is verified by the App's Clinical Checker before display.
-
-- **Confirmed Decision 1 — Invisible Engine Routing**: The UI will never display "Free AI Mode" or "Paid Cloud API" badges to the user. By default, the app runs at $0 cost in the background, and server-side API keys can be enabled later via backend configuration without changing the user experience.
-- **Confirmed Decision 2 — "Use My Gemini Account" Everywhere**: Users only see a toggle/connection option asking if they want to use their own Gemini account (`আমার Gemini অ্যাকাউন্ট ব্যবহার করুন`). When enabled, their connected Gemini account acts as the **Maker** across all modules (Chatbot, Diet Chart, Food Safety & Swap, Plate Scanner, Voice Cookbook, Family Pot, and Dinacharya).
-- **Confirmed Decision 3 — Mandatory Maker-Checker Verification**: Every output generated anywhere in the app first passes through the **App's Gemini Clinical Checker** (`চেকার ইঞ্জিন`) to validate cohort safety (such as the Pregnancy Zero-Herbs rule, Red-zone food restrictions, and biomarker compatibility) and auto-correct any unsafe advice before the final output is shown to the user.
+We will unify the entire clinical intake into a **single step-by-step category tab flow** where every user completes a comprehensive **35 to 42 question clinical package** tailored to their life stage, gender, and primary health condition.
 
 ---
 
-### 1. Overview & Core Concept
+## 1. Unified Step-by-Step Category Tab Flow
 
-- **What It Does**: Provides a seamless, unified AI health and nutrition experience where users can optionally link their own Google/Gemini account to power all app features, backed by a strict **Maker-Checker** clinical safety gate that audits every generated diet chart, food check, and chat response before rendering.
-- **Target Audience / Persona**: Users across all five clinical cohorts (Pregnancy, Child Growth, Oncology, Adolescent, Adult Metabolic) who expect personalized, medically safe Ayurvedic and Functional Nutrition guidance without technical jargon about API tiers.
-- **Key Value**:
-  - **Zero Technical Friction**: Users only choose whether to use their own Gemini account (`আমার Gemini অ্যাকাউন্ট`).
-  - **100% Zero-Cost Operation for App Owner**: Runs completely free of cost while allowing future backend scaling transparently.
-  - **Clinical Safety Guarantee (Maker-Checker)**: Prevents unsafe hallucinations or contraindicated foods/herbs from ever reaching the patient.
+When a user selects any of the **5 Life-Stage & Clinical Cohorts** (Pregnancy & Lactation, Child 1–12 Yrs, Oncology / Cancer Care, Adolescent 10–19 Yrs, or Adult Metabolic & Chronic Care), they will move through a single, cohesive multi-step wizard with **Category Progress Tabs**:
 
----
-
-### 2. User Experience & Visual Design
-
-- **Key User Flows**:
-  1. **Gemini Account Toggle (Profile & Chatbot Header)**:
-     - The user sees a single card/switch: **"আমার Gemini অ্যাকাউন্ট ব্যবহার করুন (Use My Gemini Account)"**.
-     - Turning it on connects their Google/Gemini account session so all app modules route requests through their personal Gemini preference.
-     - Turning it off (or leaving it in default state) seamlessly uses the app's built-in engine without showing any "Free AI" or "Fallback" labels.
-  2. **Maker-Checker Live Progress & Verified Output**:
-     - When the user asks a question, scans food, or generates a diet chart, a subtle two-step status indicator appears:
-       - **Step 1 (Maker)**: *ডাটা ও উত্তর তৈরি হচ্ছে... (Generating personalized response...)*
-       - **Step 2 (Checker)**: *অ্যাপের জেমিনি ক্লিনিক্যাল চেকার দ্বারা যাচাই হচ্ছে... (Verifying clinical & cohort safety...)*
-     - Once both stages finish, the final verified output is displayed with a subtle **"✓ চেকার ভেরিফাইড (Maker-Checker Verified)"** clinical safety badge showing which safety rules were validated (e.g., *Pregnancy Zero-Herbs Verified*, *Red-Zone Filter Passed*, *Dosha & Glycemic Check Passed*).
-
-- **Visual Identity & Theme**:
-  - *Aesthetic Direction*: Warm clinical precision blending traditional Ayurvedic heritage with modern diagnostic clarity.
-  - *Color Palette & Mood*: Deep herbal emerald (`#064E3B` / `emerald-900`) and warm parchment (`#FAF8F5`) paired with clinical verification accents in teal (`#0D9488`) and amber safety highlights (`#D97706`).
-  - *Typography & Hierarchy*: Clean Bengali and English typographic pairing with clear scannable bullet points, structured clinical cards, and high-contrast verification footers.
-  - *Component Styling & Layout*: Streamlined account connection toggle in the header and profile drawer, paired with a collapsible "Verification Details (চেকার রিপোর্ট)" pill on AI outputs.
-
----
-
-### 3. Key Product Decisions & Trade-Offs
-
-- **Decision 1: Hiding Underlying AI Cost Tiers from End Users**
-  - *Chosen Approach*: Remove all references to "Free AI", "Zero-Cost Fallback", or "Paid API" from the user interface. Expose only the user-centric **"Use My Gemini Account"** toggle.
-  - *Why*: Keeps the clinical experience trustworthy and professional while still running at $0 cost by default and supporting transparent server API upgrades later.
-  - *Alternatives Considered*: Showing a 3-way engine switcher (Free vs. Cloud API vs. Gemini Pro), which was rejected because it exposes internal billing mechanics to end users.
-
-- **Decision 2: Synchronous Two-Stage Maker-Checker Pipeline Across All Modules**
-  - *Chosen Approach*: Every AI service method executes a **Maker Step** (drafting the response using the active Gemini account/engine) followed immediately by a **Checker Step** (the app's clinical verification engine auditing and sanitizing the draft against the user's cohort, lab markers, Dosha, and Red-zone rules) before returning data to the UI.
-  - *Why*: Guarantees that even if a generative model suggests an herb during pregnancy or a high-glycemic food for a diabetic user, the Checker intercepts, corrects, and verifies the output before the user ever sees it.
+### For Adult Metabolic, Oncology, Adolescent, and Pregnancy Cohorts (~38–42 Questions Total):
+1. **Step 1: Anthropometrics & Vital Profile (6 Questions)**
+   - Full Name, Age, Gender (`Male` / `Female` / `Other`), Occupation/Activity Level, Height (ft/in or cm with live converter), and Weight (kg) with live BMI calculation.
+2. **Step 2: Female Focus — Shakti Cycle & Reproductive Health (4–5 Questions — Automatically shown for Female users)**
+   - **First day of last menstrual period (Date picker)** (or Trimester/Lactation stage if in Pregnancy cohort)
+   - Average menstrual cycle length (`28 days`, `21–35 days`, `Irregular`, `Menopause / Post-menopause`, `Pregnant / Lactating`)
+   - Flow & Pain characteristics (`Normal`, `Heavy bleeding / clots`, `Severe cramps / dysmenorrhea`, `Spotting / oligomenorrhea`)
+   - Hormonal / Gynecological history (`PCOS / PCOD`, `Endometriosis / Fibroids`, `Thyroid + Menstrual irregularity`, `Perimenopausal hot flashes`, `None`)
+   - Pre-menstrual symptoms (`PMS mood swings`, `Breast tenderness / water retention`, `Sugar cravings before period`, `Migraine / fatigue`)
+3. **Step 3: Daily Dietary Habits & Meal Timing (6 Questions)**
+   - Typical Breakfast, Mid-morning snack, Lunch composition, Afternoon snack, Dinner timing & food, and Daily hydration / tea / coffee intake.
+4. **Step 4: Ayurvedic Vikriti — Current Constitutional Imbalance (5 Questions)**
+   - Sleep quality & pattern, Emotional response, Body temperature sensitivity, Skin & hair texture, and Daily stamina/energy rhythm (dynamically calculates **Vata / Pitta / Kapha** dominance).
+5. **Step 5: Gut Microbiome & Digestive Function (5 Questions)**
+   - Post-meal bloating/gas timing, Morning tongue coating (`Ama` assessment), Appetite intensity (`Agni`), Bristol Stool Scale pattern, and Reaction to fermented/prebiotic foods (dynamically calculates **Microbiome Score 0–100**).
+6. **Step 6: Functional Nutrition — Insulin, Metabolism & Inflammation (10 Questions)**
+   - **Metabolic & Insulin Sensitivity (5 Qs):** Post-lunch drowsiness ("food coma"), Sugar/carb cravings, Hypoglycemic shakiness when delaying meals, Central/visceral weight gain pattern, Nighttime thirst/urination.
+   - **Systemic Inflammation & Cellular Acid-Alkaline Status (5 Qs):** Morning joint/heel stiffness, Skin/allergy reactivity, Recovery time after physical exertion, Facial/pedal water retention (edema), Chronic cellular fatigue.
+7. **Step 7: Cohort & Condition-Specific Clinical Deep-Dive (8–10 Questions)**
+   - Dynamically adapts to the chosen cohort and primary condition:
+     - **Adult Metabolic & Chronic Care (8–10 Qs):** Primary condition selector (Type 2 Diabetes, Fatty Liver NAFLD Grade 1–3, Dyslipidemia, Hypertension, Kidney/Uric Acid, Thyroid/PCOS, or Gastritis/IBS) + 8 targeted clinical questions on lab stages, meal-to-sleep gap, snoring/sleep apnea, step count, and specific disease triggers.
+     - **Oncology / Cancer Support (10 Qs):** Cancer type & site, Active treatment phase (Chemo, Radiation, Post-surgery, Remission), Cachexia / weight loss %, Dysgeusia (metallic taste), Oral mucositis / swallowing difficulty, Absolute Neutrophil Count (ANC / neutropenia safety), Chemo-induced nausea, Bowel changes, Tolerated food texture, and Caregiver cooking support.
+     - **Pregnancy & Lactation (10 Qs):** Month-by-month Trimester (Month 1–9) or Lactation stage (0–6m / 6–12m), Morning sickness severity, Gestational Diabetes (GDM) status, BP & Edema / Preeclampsia screen, Hemoglobin / Anemia status, Heartburn & Constipation, Cravings & Food aversions, Prescribed prenatal supplements (Folic acid, Iron, Calcium, DHA), Fetal growth / Maternal weight gain trajectory, and Breastmilk supply / Postpartum recovery.
+     - **Adolescent Growth & Puberty (9 Qs):** Age/Gender bracket (10–14 or 15–19), Height spurt & frame trajectory, Menstrual anemia / PCOS screen (for girls), Hormonal acne & skin health, Study focus & afternoon brain fog, Breakfast skipping habit, Sports/athletic intensity, Fast-food/soda frequency, and Late-night screen/sleep schedule.
+8. **Step 8: Medical History, Medications & Optional Lab Biomarkers (6 Questions + Optional Lab Panel)**
+   - Diagnosed co-morbidities, Current prescription medications & supplements (checked against food-drug interactions), Primary health goal, Emergency contact, Optional Lab Report upload, and Optional numerical lab inputs (HbA1c, SGPT, Creatinine, Hemoglobin, Vitamin D, etc.).
 
 ---
 
-### 4. Technical Architecture & Data Strategy *(Technical Reference)*
+## 2. Dedicated Pediatric Package for Child Cohort (`child_pediatric`, Ages 1–12) — 32 Questions Total
 
-- **Architecture & Component Diagram**:
+When the user selects **Child & Pediatric Nutrition (Ages 1–12)**, the adult questions are replaced after Anthropometrics with a dedicated **32-question Pediatric Clinical & Developmental Package** organized into 6 child-focused tabs:
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        USER INTERFACE LAYER                             │
-│  ┌───────────────────────────────┐   ┌───────────────────────────────┐  │
-│  │ Profile & Header Toggle       │   │ All App Feature Modules       │  │
-│  │ [ Use My Gemini Account: ON ] │   │ (Chat, Diet Chart, Scanner,   │  │
-│  │ (No Free/API labels shown)    │   │  Food Swap, Cookbook, Family) │  │
-│  └──────────────┬────────────────┘   └──────────────┬────────────────┘  │
-└─────────────────┼───────────────────────────────────┼───────────────────┘
-                  │                                   │
-                  ▼                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                  UNIFIED MAKER-CHECKER AI ORCHESTRATOR                  │
-│                                                                         │
-│  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │ STAGE 1: MAKER (Draft Generation)                                 │  │
-│  │ • If User Gemini Account ON → Routes via User Gemini Session      │  │
-│  │ • Default → Routes via Built-in Clinical AI / Server Engine       │  │
-│  └─────────────────────────────────┬─────────────────────────────────┘  │
-│                                    │ Raw Draft Output                   │
-│                                    ▼                                    │
-│  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │ STAGE 2: CHECKER (App's Gemini Clinical Verifier & Sanitizer)     │  │
-│  │ 1. Cohort Rule Audit (e.g., Pregnancy Zero-Herbs enforcement)     │  │
-│  │ 2. Traffic Light Audit (Blocks Red-zone foods & dinner simple     │  │
-│  │    carbs for Adult Metabolic / Diabetic / Fatty Liver profiles)   │  │
-│  │ 3. Biomarker & Dosha Alignment (Validates portions & swaps)       │  │
-│  │ 4. Auto-Rewrite & Attaches Maker-Checker Verification Metadata    │  │
-│  └─────────────────────────────────┬─────────────────────────────────┘  │
-└────────────────────────────────────┼────────────────────────────────────┘
-                                     │ Final Verified & Safe Output
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│            VERIFIED OUTPUT RENDERED TO USER WITH SAFETY STAMP           │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+1. **Tab 1: Child Anthropometrics & Growth Trajectory (6 Questions)**
+   - Child's Name, Exact Age (1–12 years), Gender, Height (cm/ft), Weight (kg), and Growth Percentile / Weight-for-Age trajectory (`Normal`, `Underweight / Faltering`, `Stunted linear height`, `Childhood Overweight`).
+2. **Tab 2: Pediatric Feeding Behavior & Daily Tiffin Routine (6 Questions)**
+   - Appetite & Picky eating behavior, Breakfast before school, School Tiffin box habit (finishes home tiffin vs. leaves half vs. canteen packaged snacks), Protein intake frequency (egg, fish, dal, milk), Vegetable & fruit acceptance, and Junk food / sweet beverage / packet chip frequency.
+3. **Tab 3: Pediatric Gut Microbiome & Digestion (5 Questions)**
+   - Stool consistency & regularity (pediatric constipation / hard pellets vs. loose stools), Recurrent colic / tummy ache after meals, Bloating or foul-smelling gas, Deworming history & worm symptoms (teeth grinding at night, anal itching), and History of antibiotic courses in the past 6 months.
+4. **Tab 4: Immunity, Allergies & Respiratory Resilience (5 Questions)**
+   - Frequency of cold, cough, tonsillitis, or viral fever, Allergic tendencies (childhood asthma, eczema/skin rashes, allergic rhinitis), Specific food allergies/intolerances (Cow's milk protein / lactose, egg, nuts, wheat/gluten), Wound healing & gum/dental health (caries/cavities), and Micronutrient deficiency signs (white spots on nails, pale conjunctiva, leg cramps at night).
+5. **Tab 5: Pediatric Ayurvedic Prakriti & Neuro-Development (5 Questions)**
+   - Child's constitutional temperament (Active/restless Vata, Sharp/hungry/warm Pitta, Calm/steady/mucus-prone Kapha), Sleep schedule & quality (mouth breathing/snoring, bedtime resistance), Screen time & mobile-feeding dependency, Concentration, memory & classroom energy, and Physical play / outdoor sunlight exposure.
+6. **Tab 6: Pediatric Clinical History, Supplements & Lab Markers (5 Questions + Optional Labs)**
+   - Current pediatrician-prescribed syrups/supplements (Iron, Zinc, Vitamin D3, Calcium, Multivitamins), Past medical history (febrile seizures, jaundice, recurrent UTI/diarrhea), Caregiver's #1 nutritional goal for the child, Emergency parent contact, and Optional Pediatric Lab Markers (Hemoglobin, Serum Ferritin, Vitamin D3, Stool R/E).
 
-- **Data Model & State**:
-  - **User Gemini Account Preference**: Stored in `localStorage` (`ayurveda_user_gemini_account`) holding `{ enabled: boolean, accountEmail?: string, connectedAt?: string }`.
-  - **Maker-Checker Verification Result**: Every AI operation attaches a `verification` object (`{ verified: true, makerSource: 'user_gemini' | 'app_ai', checksPassed: string[], correctionsMade: string[], timestamp: string }`) so the UI can confirm that Maker-Checker verification completed prior to display.
+---
 
-- **Interactive Component & State Mapping**:
-  - **Account Connection Toggle**: One-click switch in the Profile view and Chatbot header lets the user enable or disable their personal Gemini account across all app features.
-  - **Two-Step Loading State**: Displays real-time transition from *Maker (তৈরি হচ্ছে...)* to *Checker (অ্যাপের জেমিনি ভেরিফাই করছে...)* before revealing any generated diet plan, food safety check, or chat answer.
-  - **Checker Sanitization Engine**: Automatically strips prohibited items (such as Ayurvedic herbs in pregnancy or Red-zone triggers), injects safe clinical swaps, and appends the verification badge to the output.
+## 3. Real Clinical Scoring & Seamless Report Integration
+
+- **No More Hardcoded Placeholders:** Completing any cohort assessment will dynamically compute real clinical scores from the 35–42 answers:
+  - **Real BMI & Anthropometric Status** from entered Height & Weight
+  - **Real Ayurvedic Dosha Profile** (`Vata`, `Pitta`, `Kapha` percentages)
+  - **Real Gut Microbiome Score (0–100)** from digestive & antibiotic responses
+  - **Real Metabolic Type & Inflammatory Index (1–10)**
+  - **Real Female Cycle Phase** (`Menstrual`, `Follicular`, `Ovulatory`, `Luteal`) calculated from the user's Last Period Date (`shakti_1`) and cycle length (`shakti_2`)
+  - **Real Food-Drug Interaction Alerts** from entered medications (`medical_2`) + cohort clinical rules
+- **Full Bilingual Support (Bangla & English):** Every question, option, category tab, and clinical badge supports switching between বাংলা and English.

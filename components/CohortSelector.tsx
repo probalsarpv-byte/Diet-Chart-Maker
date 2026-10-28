@@ -342,8 +342,12 @@ export const CohortSelector: React.FC<Props> = ({
       <div className="flex items-center justify-between pt-4">
         <div className="text-xs text-slate-500 dark:text-slate-400">
           {isBn
-            ? 'নির্বাচনের পর ৮-১০টি প্রাসঙ্গিক ক্লিনিক্যাল প্রশ্ন ও ল্যাব ডাটা নেওয়া হবে।'
-            : 'Next step: In-depth clinical questions & optional lab markers.'}
+            ? activeCohort === 'child_pediatric'
+              ? 'নির্বাচনের পর অ্যানথ্রোপোমেট্রি ও শিশুদের বিশেষ ৩২টি পেডিয়াট্রিক প্রশ্ন ও ল্যাব ডাটা নেওয়া হবে।'
+              : 'নির্বাচনের পর ৩০–৩২টি মৌলিক ক্লিনিক্যাল প্রশ্ন (অ্যানথ্রোপোমেট্রি, বিকৃতি, মাইক্রোবায়োম, ফিমেল চক্র, ওষুধের ইতিহাস) + ১০টি রোগভিত্তিক বিশেষ প্রশ্ন নেওয়া হবে।'
+            : activeCohort === 'child_pediatric'
+            ? 'Next step: 32-question pediatric growth, gut, immunity & nutrition assessment.'
+            : 'Next step: Complete 38–42 question clinical package (Anthropometrics, Vikriti, Microbiome, Female Cycle, Medications + 10 Condition Questions).'}
         </div>
 
         <button

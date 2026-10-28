@@ -20,6 +20,10 @@ import {
 } from "../types";
 import { CohortDietEngine } from "./cohortDietEngine";
 import { getUserGeminiAccount, MakerCheckerEngine } from "./aiModeService";
+import {
+  buildBdFctFoodExchangeTable,
+  generateComprehensiveTrafficLightGuide,
+} from "../data/bdFoodCompositionDatabase";
 
 export interface FoodSafetyVerdict {
   foodName: string;
@@ -112,6 +116,13 @@ export class GeminiService {
    * also used to enrich AI output with authentic Bangladeshi items.
    */
   public getDefaultTrafficLightGuide(profile: HealthProfile): TrafficLightGuide {
+    if (profile.cohortType === "pregnancy_lactation") {
+      return CohortDietEngine.generateCohortTrafficLight(profile);
+    }
+    const fullBdFctGuide = generateComprehensiveTrafficLightGuide(profile);
+    if (fullBdFctGuide && fullBdFctGuide.items.length > 0) {
+      return fullBdFctGuide;
+    }
     const cond = (profile.medicalConditions || "").toLowerCase();
     const isDiabeticOrIR =
       cond.includes("diab") ||
@@ -1139,17 +1150,55 @@ export class GeminiService {
             },
           ];
 
+    // Map user-selected BD FCT foods by category so their chosen foods are woven into the 7-day meals
+    const fullGuide = profile.trafficLightGuide || this.getDefaultTrafficLightGuide(profile);
+    const selSet = new Set(profile.selectedFoods || []);
+    const selProteins = fullGuide.items.filter((i) => selSet.has(i.id) && i.category === "Proteins" && i.zone !== "red");
+    const selVegs = fullGuide.items.filter((i) => selSet.has(i.id) && i.category === "Vegetables & Greens" && i.zone !== "red");
+    const selCarbs = fullGuide.items.filter((i) => selSet.has(i.id) && i.category === "Grains & Carbs" && i.zone !== "red");
+    const selFats = fullGuide.items.filter((i) => selSet.has(i.id) && i.category === "Healthy Fats & Seeds" && i.zone !== "red");
+    const selFruits = fullGuide.items.filter((i) => selSet.has(i.id) && i.category === "Fruits & Snacks" && i.zone !== "red");
+
     const weeklySchedule = Array.from({ length: 7 }).map((_, idx) => {
       const b = breakfastVariations[idx % breakfastVariations.length];
       const l = lunchVariations[idx % lunchVariations.length];
       const d = dinnerVariations[idx % dinnerVariations.length];
+
+      const customProt = selProteins.length > 0 ? selProteins[idx % selProteins.length] : null;
+      const customVeg = selVegs.length > 0 ? selVegs[idx % selVegs.length] : null;
+      const customCarb = selCarbs.length > 0 ? selCarbs[idx % selCarbs.length] : null;
+      const customFat = selFats.length > 0 ? selFats[idx % selFats.length] : null;
+      const customFruit = selFruits.length > 0 ? selFruits[idx % selFruits.length] : null;
+
+      const bdFctLunchTagBn =
+        customProt || customVeg || customCarb
+          ? ` [আপনার নির্বাচিত BD FCT খাবার: ${[
+              customCarb?.nameBn,
+              customProt?.nameBn,
+              customVeg?.nameBn,
+            ]
+              .filter(Boolean)
+              .join(" + ")}]`
+          : "";
+      const bdFctLunchTagEn =
+        customProt || customVeg || customCarb
+          ? ` [Your Selected BD FCT Foods: ${[
+              customCarb?.nameEn,
+              customProt?.nameEn,
+              customVeg?.nameEn,
+            ]
+              .filter(Boolean)
+              .join(" + ")}]`
+          : "";
 
       const meals: any[] = [
         {
           time: "08:30 AM",
           mealSlot: isBn ? "সকালের নাস্তা (Breakfast)" : "Breakfast",
           mealName: isBn ? b.nameBn : b.nameEn,
-          description: isBn ? b.descBn : b.descEn,
+          description: isBn
+            ? `${b.descBn}${customFat ? ` • নির্বাচিত ফ্যাট/সিড: ${customFat.nameBn} (${customFat.caloriesPer100g} kcal/100g)` : ""}`
+            : `${b.descEn}${customFat ? ` • Selected Fat/Seed: ${customFat.nameEn} (${customFat.caloriesPer100g} kcal/100g)` : ""}`,
           quantity: isBn ? "১ বাটি সবজি + ২টি ডিম + ১ চামচ সিডস" : "1 Bowl Veggies + 2 Eggs + 1 Tbsp Seeds",
           calories: `${bCal} kcal`,
           macroBreakdown: {
@@ -1166,7 +1215,7 @@ export class GeminiService {
           time: "01:30 PM",
           mealSlot: isBn ? "দুপুরের খাবার (Lunch)" : "Lunch",
           mealName: isBn ? l.nameBn : l.nameEn,
-          description: isBn ? l.descBn : l.descEn,
+          description: isBn ? `${l.descBn}${bdFctLunchTagBn}` : `${l.descEn}${bdFctLunchTagEn}`,
           quantity: isBn ? "১ কাপ লাল ভাত + ১০০ গ্রাম মাছ/মুরগি + ১ বাটি শাকসবজি" : "1 Cup Red Rice + 100g Fish/Chicken + 1 Bowl Greens",
           calories: `${lCal} kcal`,
           macroBreakdown: {
@@ -1186,12 +1235,16 @@ export class GeminiService {
           time: "04:45 PM",
           mealSlot: isBn ? "বিকেলের হালকা নাস্তা (Evening Snack)" : "Evening Clinical Snack",
           mealName: isBn
-            ? "রোস্টেড মাখনা (১ কাপ), আমলকী/পেয়ারা ও ৫টি কাঠবাদাম"
+            ? customFruit
+              ? `রোস্টেড মাখনা (১ কাপ), ${customFruit.nameBn} ও ৫টি কাঠবাদাম`
+              : "রোস্টেড মাখনা (১ কাপ), আমলকী/পেয়ারা ও ৫টি কাঠবাদাম"
+            : customFruit
+            ? `Roasted Makhana (1 Cup), ${customFruit.nameEn} & 5 Soaked Almonds`
             : "Roasted Makhana (1 Cup), Fresh Guava/Amla & 5 Soaked Almonds",
           description: isBn
-            ? "অল্প ঘি ও বিট লবণ দিয়ে ভাজা ১ কাপ মাখনা + ১টি দেশি পেয়ারা বা আমলকী + ৫টি ভেজানো কাঠবাদাম ও গ্রিন টি।"
-            : "1 cup dry-roasted fox nuts (Makhana) with pink salt + 1 guava/amla + 5 soaked almonds.",
-          quantity: isBn ? "১ কাপ মাখনা + ৫টি বাদাম" : "1 Cup Makhana + 5 Almonds",
+            ? `অল্প ঘি ও বিট লবণ দিয়ে ভাজা ১ কাপ মাখনা + ${customFruit ? `${customFruit.nameBn} (${customFruit.caloriesPer100g} kcal/100g)` : "১টি দেশি পেয়ারা বা আমলকী"} + ৫টি ভেজানো কাঠবাদাম।`
+            : `1 cup dry-roasted fox nuts (Makhana) with pink salt + ${customFruit ? `${customFruit.nameEn} (${customFruit.caloriesPer100g} kcal/100g)` : "1 guava/amla"} + 5 soaked almonds.`,
+          quantity: isBn ? "১ কাপ মাখনা + ১টি ফল + ৫টি বাদাম" : "1 Cup Makhana + 1 Fruit + 5 Almonds",
           calories: `${sCal} kcal`,
           macroBreakdown: {
             protein: `${Math.round(totalProteinGrams * 0.08)}g`,
@@ -1209,7 +1262,9 @@ export class GeminiService {
         time: "07:45 PM",
         mealSlot: isBn ? "রাতের খাবার (Dinner)" : "Dinner",
         mealName: isBn ? d.nameBn : d.nameEn,
-        description: isBn ? d.descBn : d.descEn,
+        description: isBn
+          ? `${d.descBn}${customVeg ? ` • রাতের নির্বাচিত সবজি: ${customVeg.nameBn}` : ""}`
+          : `${d.descEn}${customVeg ? ` • Selected Dinner Veg: ${customVeg.nameEn}` : ""}`,
         quantity: isBn ? "১ বড় বাটি সিদ্ধ সবজি + ১০০ গ্রাম মাছ/মুরগি + শাক" : "1 Large Bowl Boiled Veg + 100g Fish/Chicken + Greens",
         calories: `${dCal} kcal`,
         macroBreakdown: {
@@ -1283,64 +1338,7 @@ export class GeminiService {
           ? `আপনার দৈনিক ফ্যাটের চাহিদা ${totalDailyFatGrams} গ্রাম। এর মধ্যে মাত্র ${cookingFatGrams} গ্রাম আসবে রান্নার তেল ও ঘি থেকে (${gheeGrams} গ্রাম দেশি ঘি + ${cookingOilGrams} গ্রাম অলিভ/সরিষার তেল) এবং বাকি ${dietarySourceFatGrams} গ্রাম আসবে প্রাকৃতিক ডায়েটারি সোর্স (ডিম, মাছ, বাদাম ও সিডস) থেকে।`
           : `Your total daily fat requirement is ${totalDailyFatGrams}g. Strictly ${cookingFatGrams}g comes from visible cooking fats (${gheeGrams}g Deshi Ghee + ${cookingOilGrams}g Olive/Mustard Oil), while the remaining ${dietarySourceFatGrams}g comes naturally from dietary sources (eggs, fish, nuts, and seeds).`,
       },
-      foodExchangeTable: [
-        {
-          category: isBn ? "শর্করা ও রাইস এক্সচেঞ্জ (Grains & Carbs)" : "Grains & Carbs Exchange",
-          primaryFood: isBn ? "লাল চালের ভাত / ব্রাউন রাইস (১ কাপ)" : "Brown / Red Rice (1 Cup Cooked)",
-          primaryPortion: "120g (~130 kcal)",
-          greenSubstitutes: isBn
-            ? ["ফুলকপির রাইস (Cauliflower Rice - ১.৫ কাপ)", "রোস্টেড মাখনা (১ বাটি - ৩০ গ্রাম)", "লো-জিআই মিলেট/জুকিনি নুডলস (১ কাপ)"]
-            : ["Cauliflower Rice (1.5 Cups)", "Roasted Makhana / Fox Nuts (1 Bowl - 30g)", "Low-GI Millet or Konjac Noodles (1 Cup)"],
-          yellowSubstitutes: isBn
-            ? ["কাউনের চালের ভাত (৩/৪ কাপ)", "রোলড ওটস (১/২ কাপ)", "লাল আটার পাতলা রুটি (১টি)"]
-            : ["Kaon Millet Rice (¾ Cup)", "Rolled Oats Porridge (½ Cup)", "Whole Red Wheat Thin Roti (1 pc)"],
-          clinicalNote: isBn
-            ? "রাতে শস্য নিষেধ থাকলে লাল ভাতের বদলে ফুলকপির রাইস বা লাউ সিদ্ধ গ্রহণ করুন।"
-            : "Swap brown rice with Cauliflower Rice or Makhana for lower glycemic load.",
-        },
-        {
-          category: isBn ? "রাতের সবজি শর্করা (Night Vegetable Carbs)" : "Night Vegetable Carbs",
-          primaryFood: isBn ? "লাউ সিদ্ধ / লাউয়ের তরকারি (১ বড় বাটি)" : "Boiled Bottle Gourd / Lau (1 Large Bowl)",
-          primaryPortion: "200g (~45 kcal)",
-          greenSubstitutes: isBn
-            ? ["কাঁচা পেঁপে সিদ্ধ বা ভর্তা (১ বাটি)", "চালকুমড়া বা ঝিঙে সিদ্ধ (১ বাটি)", "স্টিমড ব্রকলি ও বাঁধাকপি (১ বাটি)"]
-            : ["Boiled Green Papaya / Pepe (1 Bowl)", "Steamed Ash Gourd / Chal Kumra (1 Bowl)", "Steamed Broccoli & Cabbage (1 Bowl)"],
-          yellowSubstitutes: isBn
-            ? ["মিষ্টি কুমড়া সিদ্ধ (১/২ বাটি - শুধু দুপুরে)", "বিটরুট স্টিমড (১/২ বাটি)"]
-            : ["Steamed Sweet Pumpkin (½ Bowl - Daytime)", "Steamed Beetroot (½ Bowl)"],
-          clinicalNote: isBn
-            ? "হজমশক্তি দুর্বল হলে রাতে সবজি ভালোভাবে সিদ্ধ করে গোলমরিচ ও সামান্য ঘি মিশিয়ে খান।"
-            : "Cook night vegetables well with black pepper and a drop of ghee for Vata/Agni support.",
-        },
-        {
-          category: isBn ? "প্রাণিজ ও উদ্ভিজ্জ প্রোটিন (Protein Exchange)" : "Protein Exchange",
-          primaryFood: isBn ? "রুই বা কাতলা মাছ (২ টুকরো)" : "Rui / Katla River Fish (2 Pieces)",
-          primaryPortion: "100g (~120 kcal)",
-          greenSubstitutes: isBn
-            ? ["দেশি মুরগির মাংস (১০০ গ্রাম)", "দেশি ডিম (২টি)", "শিং/মাগুর বা দেশি ছোট মাছ (১ বাটি)"]
-            : ["Deshi Chicken Breast/Stew (100g)", "Deshi Boiled/Poached Eggs (2 pcs)", "Shing / Magur / Small Fish (1 Bowl)"],
-          yellowSubstitutes: isBn
-            ? ["ঘন মুগ ও মসুর ডাল মিক্স (১ বাটি)", "ঘরে তৈরি ছানা বা পনির (৬০ গ্রাম)"]
-            : ["Thick Sprouted Moong-Masoor Dal (1 Bowl)", "Homemade Chhena / Paneer (60g)"],
-          clinicalNote: isBn
-            ? "প্রতি বেলায় অন্তত ১টি প্রথম শ্রেণীর প্রোটিন (ডিম/মাছ/মুরগি) রাখা আবশ্যক।"
-            : "Include at least one complete protein source at Breakfast, Lunch, and Dinner.",
-        },
-        {
-          category: isBn ? "সকালের সিডস ও ডায়েটারি ফ্যাট (Healthy Fats)" : "Seeds & Dietary Fats",
-          primaryFood: isBn ? "চিয়া সিড ও তিসি (১ টেবিল চামচ)" : "Chia & Flax Seeds (1 Tbsp)",
-          primaryPortion: "15g (~75 kcal)",
-          greenSubstitutes: isBn
-            ? ["মিষ্টি কুমড়ার বীজ ও সূর্যমুখী বীজ (১ টেবিল চামচ)", "ভেজানো কাঠবাদাম (৬-৭টি)", "আখরোট / Walnuts (৪টি)"]
-            : ["Pumpkin & Sunflower Seeds (1 Tbsp)", "Soaked Almonds (6-7 pcs)", "Walnut Halves (4 pcs)"],
-          yellowSubstitutes: isBn
-            ? ["নারিকেলের দুধ (২ চামচ রান্নায়)", "কালোজিরা ও সাদা তিল (১ চামচ)"]
-            : ["Fresh Coconut Milk (2 Tbsp)", "Black Cumin (Kalojira) & Sesame Seeds (1 Tsp)"],
-          clinicalNote: isBn
-            ? "সিডস ও বাদাম আপনার ৫০ গ্রাম ডায়েটারি ফ্যাটের প্রধান উৎস।"
-            : "Nuts and seeds supply your clean dietary fat quota without oxidized oils.",
-        },
-      ],
+      foodExchangeTable: buildBdFctFoodExchangeTable(profile, isBn),
       detoxWaterProtocol: [
         {
           timing: isBn ? "সকালে খালি পেটে (Morning Empty Stomach - 07:00 AM)" : "Morning (Empty Stomach - 07:00 AM)",

@@ -17,6 +17,7 @@ import {
   ZERO_HERBS_WARNING_BN,
   ZERO_HERBS_WARNING_EN,
 } from '../data/cohortData';
+import { generateComprehensiveTrafficLightGuide } from '../data/bdFoodCompositionDatabase';
 
 export class CohortDietEngine {
   /**
@@ -321,8 +322,9 @@ export class CohortDietEngine {
         },
       ];
 
+      const bdFctGuide = generateComprehensiveTrafficLightGuide(profile);
       return {
-        items,
+        items: [...items, ...bdFctGuide.items],
         recommendedMealFrequency: 4,
         mealFrequencyReasonBn:
           'গর্ভাবস্থায় জরায়ুর চাপের কারণে একসাথে বেশি না খেয়ে দিনে ৪-৫ বার অল্প অল্প করে পুষ্টিকর স্নিগ্ধ আহার গ্রহণ করা সর্বোত্তম।',
@@ -332,67 +334,13 @@ export class CohortDietEngine {
         dinnerCarbReasonEn: 'Soft grains like rice-milk gruel (Yavagu) provide nocturnal glucose stability.',
         dinnerCarbReasonBn: 'রাতে নরম চালের জাউ বা পাতলা ফুলকো রুটি রক্তের সুগার স্থির রাখে ও অপান বায়ু স্বাভাবিক রাখে।',
         hasHypoacidity: false,
-        clinicalSummaryEn: 'Ayurvedic Masanumasika food guide with zero medicinal herbs.',
-        clinicalSummaryBn: 'কোনো ঔষধি হার্বস ছাড়া সম্পূর্ণ ঘরোয়া আয়ুর্বেদিক মাসানুক্রমিক খাদ্য নির্দেশিকা।',
+        clinicalSummaryEn: 'Ayurvedic Masanumasika & Bangladesh Food Composition (BD FCT) guide with zero medicinal herbs.',
+        clinicalSummaryBn: 'কোনো ঔষধি হার্বস ছাড়া সম্পূর্ণ ঘরোয়া আয়ুর্বেদিক মাসানুক্রমিক ও বাংলাদেশ ফুড কম্পোজিশন (BD FCT) খাদ্য নির্দেশিকা।',
       };
     }
 
-    // Default for other cohorts (Oncology, Pediatric, Adolescent, Adult Metabolic)
-    const items: TrafficLightFoodItem[] = [
-      {
-        id: 'fat_deshi_ghee',
-        nameEn: 'Pure A2 Deshi Cow Ghee (দেশি খাঁটি ঘি)',
-        nameBn: 'খাঁটি দেশি গাওয়া ঘি',
-        category: 'Healthy Fats & Seeds',
-        zone: 'green',
-        caloriesPer100g: 900,
-        clinicalReasonEn: 'Rich in butyric acid to heal colonocytes and kindle digestive Agni.',
-        clinicalReasonBn: 'বিউটিরিক অ্যাসিড সমৃদ্ধ যা অন্ত্রের প্রাচীর সুস্থ রাখে ও হজমশক্তি বাড়ায়।',
-      },
-      {
-        id: 'carb_red_rice',
-        nameEn: 'Unpolished Red Rice (ঢেঁকি ছাঁটা লাল চাল)',
-        nameBn: 'লাল চালের নরম ভাত',
-        category: 'Grains & Carbs',
-        zone: 'green',
-        caloriesPer100g: 111,
-        clinicalReasonEn: 'Complex low-glycemic carbohydrate rich in anthocyanins and magnesium.',
-        clinicalReasonBn: 'ধীরগতির শর্করা যা রক্তে সুগার নিয়ন্ত্রণে রাখে।',
-      },
-      {
-        id: 'prot_small_fish',
-        nameEn: 'Small Bengali Freshwater Fish with Bones (মলা, ঢেলা, কাঁচকি)',
-        nameBn: 'দেশি ছোট মাছ (কাঁচকি, মলা, দেশি শিং)',
-        category: 'Proteins',
-        zone: 'green',
-        caloriesPer100g: 95,
-        clinicalReasonEn: 'Whole-food bioavailable calcium, phosphorus, and essential marine DHA.',
-        clinicalReasonBn: 'প্রাকৃতিক ক্যালসিয়াম ও ওমেগা-৩ এর সেরা উৎস।',
-      },
-      {
-        id: 'junk_sugar_drinks',
-        nameEn: 'Refined Sugar, Soft Drinks & Processed Bakery (চিনি ও কোমল পানীয়)',
-        nameBn: 'সাদা চিনি, কোল্ড ড্রিঙ্কস ও প্যাকেটজাত বেকারি বিস্কুট',
-        category: 'Fruits & Snacks',
-        zone: 'red',
-        caloriesPer100g: 380,
-        clinicalReasonEn: 'Triggers hepatic lipogenesis, gut dysbiosis, and systemic inflammation.',
-        clinicalReasonBn: 'লিভারে চর্বি জমায় ও কোষীয় প্রদাহ বাড়ায়।',
-      },
-    ];
-
-    return {
-      items,
-      recommendedMealFrequency: 3,
-      mealFrequencyReasonBn: 'হজম ও ইনসুলিন ক্লিয়ারেন্সের জন্য দিনে ৩ বার পুষ্টিকর খাবার গ্রহণ উত্তম।',
-      mealFrequencyReasonEn: '3 structured meals allow 4-5 hours of insulin clearance and gut resting.',
-      recommendedDinnerCarbRule: 'vegetable_carbs',
-      dinnerCarbReasonEn: 'Vegetable carbs at dinner enhance nocturnal lipid oxidation.',
-      dinnerCarbReasonBn: 'রাতের খাবারে সবজির জটিল শর্করা মেটাবলিজম ও ফ্যাটি লিভার নিরাময়ে সহায়ক।',
-      hasHypoacidity: false,
-      clinicalSummaryEn: 'Standard clinical precision guide.',
-      clinicalSummaryBn: 'ক্লিনিক্যাল প্রিসিশন খাদ্য তালিকা।',
-    };
+    // Default for all other cohorts (Oncology, Pediatric, Adolescent, Adult Metabolic, Geriatric)
+    return generateComprehensiveTrafficLightGuide(profile);
   }
 
   /**

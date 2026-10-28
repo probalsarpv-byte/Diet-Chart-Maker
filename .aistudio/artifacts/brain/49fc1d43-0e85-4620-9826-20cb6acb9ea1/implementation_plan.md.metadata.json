@@ -1,6 +1,6 @@
 {
-  "summary":  "Revised implementation plan hiding internal Free AI vs API labels from the user, providing a single 'Use My Gemini Account' toggle that applies across all app features, and implementing a mandatory Maker-Checker Clinical Verification pipeline where the app's AI verifies and sanitizes every output before displaying it.",
-  "updatedAt":  "2026-10-28T06:09:54.762583775Z",
+  "summary":  "Implementation plan for the Unified 35-42 Question Clinical Assessment Package across all 5 Life-Stage Cohorts, including 30+ common foundational clinical questions (Anthropometrics, Dietary History, Female Cycle Sync / Shakti when female, Ayurvedic Vikriti, Microbiome & Digestion, Functional Metabolism, Inflammation, Mind, and Medical/Medication History), 8-10 condition-specific questions per cohort/disease, and a dedicated 32-question Pediatric package for children.",
+  "updatedAt":  "2026-10-28T09:37:29.423364795Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

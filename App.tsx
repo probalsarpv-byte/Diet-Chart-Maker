@@ -665,7 +665,14 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'food_recognition') {
-      return <FoodRecognitionView profile={profile} lang={lang} darkMode={darkMode} />;
+      return (
+        <FoodRecognitionView
+          profile={profile}
+          lang={lang}
+          darkMode={darkMode}
+          onUpdateProfile={setProfile}
+        />
+      );
     }
 
     if (currentView === 'marketplace') {
