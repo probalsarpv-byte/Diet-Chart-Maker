@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { HealthProfile, Language, Phase, ProfileRoleType, User } from '../types';
+import { HealthProfile, Language, Phase, ProfileRoleType, User, UserGeminiAccountConfig } from '../types';
 import { translations } from '../i18n';
 import HealthPortal from './HealthPortal';
 import FamilyManagerDashboard from './FamilyManagerDashboard';
 import DoctorDashboard from './DoctorDashboard';
+import PregnancyMilestonesDashboard from './PregnancyMilestonesDashboard';
+import ChildDevelopmentMilestones from './ChildDevelopmentMilestones';
+import {
+  getUserGeminiAccount,
+  toggleUserGeminiAccount,
+  subscribeUserGeminiAccount,
+} from '../services/aiModeService';
+import { ShieldCheck, Sparkles } from 'lucide-react';
 
 interface Props {
   user: User;
@@ -16,6 +24,7 @@ interface Props {
   onNavigateToFamilyPot?: () => void;
   onNavigateToDashboard?: () => void;
   onUpdateUser?: (updated: User) => void;
+  onUpdateProfile?: (updated: HealthProfile) => void;
 }
 
 const ProfileView: React.FC<Props> = ({
@@ -29,11 +38,21 @@ const ProfileView: React.FC<Props> = ({
   onNavigateToFamilyPot,
   onNavigateToDashboard,
   onUpdateUser,
+  onUpdateProfile,
 }) => {
   const t = translations[lang];
   const isBn = lang === 'bn';
   const [copied, setCopied] = useState(false);
   const [showPortal, setShowPortal] = useState(false);
+  const [geminiAccount, setGeminiAccount] = useState<UserGeminiAccountConfig>(() =>
+    getUserGeminiAccount()
+  );
+
+  useEffect(() => {
+    return subscribeUserGeminiAccount((cfg) => {
+      setGeminiAccount(cfg);
+    });
+  }, []);
 
   const initialRole: ProfileRoleType =
     user.profileType || (user.id.startsWith('DOC-') ? 'doctor' : user.isFamilyManager ? 'family' : 'self');
@@ -70,69 +89,152 @@ const ProfileView: React.FC<Props> = ({
     experienceYears: 8,
   };
 
-  // Role Switcher Header (3 Profile Types -> 3 Distinct Interfaces)
-  const renderRoleSwitcher = () => (
+  // User Gemini Account & Maker-Checker Verification Card (No Free AI / API labels shown)
+  const renderGeminiAccountCard = () => (
     <div
-      className={`p-4 md:p-5 rounded-[28px] border shadow-md flex flex-col md:flex-row items-center justify-between gap-4 ${
-        darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
+      className={`p-5 md:p-6 rounded-[28px] border shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors ${
+        darkMode
+          ? 'bg-gradient-to-r from-slate-900 via-emerald-950/40 to-teal-950/40 border-emerald-800/50'
+          : 'bg-gradient-to-r from-emerald-50/70 via-teal-50/50 to-white border-emerald-200/80'
       }`}
     >
-      <div className="flex items-center gap-3">
-        <span className="text-xl">🎛️</span>
-        <div>
-          <h3 className="text-xs md:text-sm font-bold">
-            {isBn ? 'প্রোফাইল ইন্টারফেস মোড (৩ ধরনের প্রোফাইল)' : 'Profile Interface Mode (3 Profile Types)'}
-          </h3>
-          <p className="text-[11px] opacity-60">
-            {isBn
-              ? 'নিজের জন্য, ফ্যামিলির জন্য অথবা ডাক্তার হিসেবে আপনার ইন্টারফেস দেখুন'
-              : 'Switch between Personal, Family, and Clinical Doctor interfaces'}
+      <div className="flex items-start gap-3.5">
+        <div
+          className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+            geminiAccount.enabled
+              ? 'bg-emerald-600 text-white'
+              : darkMode
+              ? 'bg-slate-800 text-emerald-400 border border-slate-700'
+              : 'bg-white text-emerald-700 border border-emerald-200'
+          }`}
+        >
+          <Sparkles className="w-6 h-6" />
+        </div>
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm md:text-base font-extrabold">
+              {isBn
+                ? 'আমার Gemini অ্যাকাউন্ট ব্যবহার করুন'
+                : 'Use My Personal Gemini Account'}
+            </h3>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-500/15 text-teal-600 dark:text-teal-300 border border-teal-500/30">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              {isBn ? 'মেকার-চেকার ভেরিফাইড' : 'Maker-Checker Active'}
+            </span>
+          </div>
+          <p className="text-xs opacity-75 leading-relaxed max-w-2xl">
+            {geminiAccount.enabled
+              ? isBn
+                ? `আপনার Gemini অ্যাকাউন্ট (${user.email || 'সংযুক্ত অ্যাকাউন্ট'}) এখন অ্যাপের সব জায়গায় (ডায়েট চার্ট, চ্যাটবট, ফুড সেফটি, কুকবুক ও ফ্যামিলি পট) ব্যবহৃত হচ্ছে। যেকোনো আউটপুট দেখানোর আগে অ্যাপের জেমিনি ক্লিনিক্যাল চেকার তা ভেরিফাই করে দেখাচ্ছে।`
+                : `Your Gemini account (${user.email || 'Connected Account'}) is active across all app features. Every output is verified by the App's Gemini Clinical Checker before display.`
+              : isBn
+              ? 'আপনি কি আপনার নিজস্ব Gemini অ্যাকাউন্ট ব্যবহার করতে চান? এটি চালু করলে অ্যাপের সব জায়গায় আপনার Gemini ব্যবহৃত হবে এবং প্রতিটি আউটপুট অ্যাপের জেমিনি চেকার দ্বারা ভেরিফাই হয়ে আসবে।'
+              : "Would you like to use your own Gemini account? When enabled, your Gemini account is used everywhere in the app, and every output is verified by the App's Gemini Checker before display."}
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 w-full md:w-auto">
-        <button
-          onClick={() => handleRoleSwitch('self')}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-            activeRoleTab === 'self'
-              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
-              : darkMode
-              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+      <div className="flex items-center gap-3 self-end md:self-center shrink-0">
+        <span
+          className={`text-xs font-extrabold ${
+            geminiAccount.enabled ? 'text-emerald-600 dark:text-emerald-400' : 'opacity-60'
           }`}
         >
-          <span>👤</span>
-          <span>{isBn ? 'নিজের জন্য' : 'For Myself'}</span>
+          {geminiAccount.enabled
+            ? isBn
+              ? 'চালু আছে (ON)'
+              : 'Connected (ON)'
+            : isBn
+            ? 'বন্ধ আছে (OFF)'
+            : 'Off'}
+        </span>
+        <button
+          type="button"
+          onClick={() =>
+            toggleUserGeminiAccount(!geminiAccount.enabled, user.email, user.name)
+          }
+          role="switch"
+          aria-checked={geminiAccount.enabled}
+          className={`relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+            geminiAccount.enabled ? 'bg-emerald-600' : 'bg-slate-400 dark:bg-slate-700'
+          }`}
+        >
+          <span
+            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+              geminiAccount.enabled ? 'translate-x-6' : 'translate-x-0'
+            }`}
+          />
         </button>
+      </div>
+    </div>
+  );
 
-        <button
-          onClick={() => handleRoleSwitch('family')}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-            activeRoleTab === 'family'
-              ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
-              : darkMode
-              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          <span>👨‍👩‍👧‍👦</span>
-          <span>{isBn ? 'ফ্যামিলির জন্য' : 'For Family'}</span>
-        </button>
+  // Role Switcher Header (3 Profile Types -> 3 Distinct Interfaces)
+  const renderRoleSwitcher = () => (
+    <div className="space-y-4">
+      {renderGeminiAccountCard()}
+      <div
+        className={`p-4 md:p-5 rounded-[28px] border shadow-md flex flex-col md:flex-row items-center justify-between gap-4 ${
+          darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-xl">🎛️</span>
+          <div>
+            <h3 className="text-xs md:text-sm font-bold">
+              {isBn ? 'প্রোফাইল ইন্টারফেস মোড (৩ ধরনের প্রোফাইল)' : 'Profile Interface Mode (3 Profile Types)'}
+            </h3>
+            <p className="text-[11px] opacity-60">
+              {isBn
+                ? 'নিজের জন্য, ফ্যামিলির জন্য অথবা ডাক্তার হিসেবে আপনার ইন্টারফেস দেখুন'
+                : 'Switch between Personal, Family, and Clinical Doctor interfaces'}
+            </p>
+          </div>
+        </div>
 
-        <button
-          onClick={() => handleRoleSwitch('doctor')}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-            activeRoleTab === 'doctor'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : darkMode
-              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          <span>🩺</span>
-          <span>{isBn ? 'ডাক্তার হিসেবে' : 'As Doctor'}</span>
-        </button>
+        <div className="grid grid-cols-3 gap-2 w-full md:w-auto">
+          <button
+            onClick={() => handleRoleSwitch('self')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+              activeRoleTab === 'self'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
+                : darkMode
+                ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <span>👤</span>
+            <span>{isBn ? 'নিজের জন্য' : 'For Myself'}</span>
+          </button>
+
+          <button
+            onClick={() => handleRoleSwitch('family')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+              activeRoleTab === 'family'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
+                : darkMode
+                ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <span>👨‍👩‍👧‍👦</span>
+            <span>{isBn ? 'ফ্যামিলির জন্য' : 'For Family'}</span>
+          </button>
+
+          <button
+            onClick={() => handleRoleSwitch('doctor')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+              activeRoleTab === 'doctor'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                : darkMode
+                ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <span>🩺</span>
+            <span>{isBn ? 'ডাক্তার হিসেবে' : 'As Doctor'}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -351,6 +453,37 @@ const ProfileView: React.FC<Props> = ({
           </button>
         </div>
       </div>
+
+      {/* Pregnancy Milestones Dashboard (Strictly visible ONLY when profile.cohortType === 'pregnancy_lactation') */}
+      {profile.cohortType === 'pregnancy_lactation' && (
+        <PregnancyMilestonesDashboard
+          currentPregnancyMonth={profile.pregnancyMonth || 1}
+          lang={lang}
+          darkMode={darkMode}
+          onSyncPregnancyMonth={(newMonth) => {
+            if (onUpdateProfile) {
+              onUpdateProfile({ ...profile, pregnancyMonth: newMonth });
+            }
+          }}
+        />
+      )}
+
+      {/* Child Development Milestones & Catch-Up Engine (Strictly visible ONLY when profile.cohortType === 'child_pediatric') */}
+      {profile.cohortType === 'child_pediatric' && (
+        <ChildDevelopmentMilestones
+          childAgeGroup={profile.childAgeGroup || '1-3'}
+          childAgeYears={profile.age}
+          childWeightKg={profile.weight}
+          childHeightCm={profile.height}
+          lang={lang}
+          darkMode={darkMode}
+          onSyncAgeGroup={(newBracket) => {
+            if (onUpdateProfile) {
+              onUpdateProfile({ ...profile, childAgeGroup: newBracket });
+            }
+          }}
+        />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Health Synthesis Dashboard */}

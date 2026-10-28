@@ -240,12 +240,150 @@ export interface HealthProfile {
   mealFrequency?: 3 | 4;
   dinnerCarbRule?: 'vegetable_carbs' | 'cereal_allowed' | 'no_carbs';
   hasHypoacidity?: boolean;
+
+  // Cohort Specialization
+  cohortType?: CohortType;
+  pregnancyMonth?: number; // 1 to 9
+  lactationStage?: '0-6m' | '6-12m';
+  childAgeGroup?: '1-3' | '4-6' | '7-12';
+  oncologyPhase?: 'chemo' | 'radio' | 'recovery' | 'remission';
+  adolescentSubtype?: 'girl_anemia' | 'boy_growth' | 'sports';
+  metabolicCondition?: string;
+  cohortLabMarkers?: Record<string, string | number>;
+  cohortSafetyAlerts?: CohortSafetyAlert[];
+  nutrientBoosters?: NutrientBooster[];
+}
+
+export type CohortType =
+  | 'pregnancy_lactation'
+  | 'child_pediatric'
+  | 'oncology_cancer'
+  | 'adolescent_growth'
+  | 'adult_metabolic';
+
+export interface CohortLabMarker {
+  id: string;
+  nameBn: string;
+  nameEn: string;
+  unit: string;
+  standardRange: string;
+  normalMin?: number;
+  normalMax?: number;
+  userValue?: string | number;
+  interpretationBn?: string;
+  interpretationEn?: string;
+}
+
+export interface CohortQuestionOption {
+  labelBn: string;
+  labelEn: string;
+  value: string;
+  clinicalTag?: string;
+}
+
+export interface CohortQuestion {
+  id: string;
+  cohort: CohortType;
+  category: 'clinical' | 'lifestyle' | 'symptom' | 'lab';
+  titleBn: string;
+  titleEn: string;
+  subtitleBn?: string;
+  subtitleEn?: string;
+  type: 'radio' | 'checkbox' | 'number' | 'text';
+  options?: CohortQuestionOption[];
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+}
+
+export interface MasanumasikaSampleMeal {
+  slot: string;
+  time: string;
+  mealNameBn: string;
+  mealNameEn: string;
+  ingredientsBn: string;
+  ingredientsEn: string;
+  benefitsBn: string;
+  benefitsEn: string;
+}
+
+export interface AyurvedicMasanumasikaMonth {
+  monthNumber: number; // 1 to 9
+  monthNameBn: string;
+  monthNameEn: string;
+  trimester: 1 | 2 | 3;
+  fetusDevBn: string;
+  fetusDevEn: string;
+  ayurvedicFocusBn: string;
+  ayurvedicFocusEn: string;
+  dhatuFocus: string;
+  functionalNutritionBn: string;
+  functionalNutritionEn: string;
+  keyKitchenFoodsBn: string[];
+  keyKitchenFoodsEn: string[];
+  prohibitedFoodsBn: string[];
+  prohibitedFoodsEn: string[];
+  zeroHerbsReminderBn: string;
+  zeroHerbsReminderEn: string;
+  sampleDayMenu: MasanumasikaSampleMeal[];
+}
+
+export interface CohortSafetyAlert {
+  id: string;
+  severity: 'critical' | 'warning' | 'info';
+  titleBn: string;
+  titleEn: string;
+  descriptionBn: string;
+  descriptionEn: string;
+  prohibitedFoods: string[];
+}
+
+export interface NutrientBooster {
+  id: string;
+  nutrientNameBn: string;
+  nutrientNameEn: string;
+  foodSourcesBn: string[];
+  foodSourcesEn: string[];
+  clinicalMechanismBn: string;
+  clinicalMechanismEn: string;
+  homeRecipeBn: string;
+  homeRecipeEn: string;
+  iconName?: string;
+}
+
+
+export interface UserGeminiAccountConfig {
+  enabled: boolean;
+  accountEmail?: string;
+  accountName?: string;
+  connectedAt?: string;
+}
+
+export interface MakerCheckerVerification {
+  verified: boolean;
+  makerUsedUserGemini: boolean;
+  makerLabelBn: string;
+  makerLabelEn: string;
+  checkerLabelBn: string;
+  checkerLabelEn: string;
+  summaryBn: string;
+  summaryEn: string;
+  checksPassedBn: string[];
+  checksPassedEn: string[];
+  sanitizedItemsCount: number;
+  sanitizationNoteBn?: string;
+  sanitizationNoteEn?: string;
+  verifiedAt: string;
 }
 
 export interface ChatMessage {
-  role: 'user' | 'model';
+  id?: string;
+  role?: 'user' | 'model';
+  sender?: 'user' | 'ai';
   text: string;
   timestamp: Date;
+  verification?: MakerCheckerVerification;
 }
 
 export interface JournalEntry {
@@ -353,6 +491,10 @@ export interface DietPhaseChart {
     fats: number;
     carbs: number;
   };
+  title?: string;
+  dailyCalorieTarget?: number;
+  SampleDay?: any;
+  verification?: MakerCheckerVerification;
 }
 
 export interface DinacharyaActivity {
@@ -430,3 +572,34 @@ export interface CommunityPost {
   likes: number;
   comments: CommunityComment[];
 }
+
+export type MealSlotKey = 'morning' | 'midDay' | 'afternoon' | 'evening';
+
+export interface LoggedFoodItem {
+  id: string;
+  slot: MealSlotKey;
+  nameBn: string;
+  nameEn: string;
+  portion: string;
+  grams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  fiber?: number;
+  matchedChartMeal?: boolean;
+  timestamp: string;
+}
+
+export interface DailyCalorieLog {
+  date: string; // YYYY-MM-DD
+  dayLabelBn: string;
+  dayLabelEn: string;
+  targetCalories: number;
+  targetProtein: number;
+  targetCarbs: number;
+  targetFats: number;
+  waterGlasses: number;
+  items: LoggedFoodItem[];
+}
+

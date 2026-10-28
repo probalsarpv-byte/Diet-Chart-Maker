@@ -7,9 +7,12 @@ import {
   ProfessionalProfile,
   ProfileRoleType,
   FamilyMember,
+  CohortType,
 } from '../types';
 import { ALL_QUESTIONS } from '../questions';
 import { translations } from '../i18n';
+import CohortSelector from './CohortSelector';
+import CohortAssessmentForm from './CohortAssessmentForm';
 
 interface Props {
   user?: User | null;
@@ -48,12 +51,17 @@ const AssessmentStep: React.FC<Props> = ({
     return null;
   });
 
-  const [stepStage, setStepStage] = useState<'role_select' | 'profile_setup' | 'questions' | 'referral_id'>(() => {
-    if (isDoctorMode) return 'questions';
+  const [stepStage, setStepStage] = useState<
+    'role_select' | 'profile_setup' | 'cohort_select' | 'cohort_questions' | 'questions' | 'referral_id'
+  >(() => {
+    if (isDoctorMode) return 'cohort_select';
     if (initialRole) return 'profile_setup';
-    if (user) return 'questions';
+    if (user) return 'cohort_select';
     return 'role_select';
   });
+
+  const [selectedCohort, setSelectedCohort] = useState<CohortType>('pregnancy_lactation');
+  const [selectedPregnancyMonth, setSelectedPregnancyMonth] = useState<number>(3);
 
   useEffect(() => {
     if (initialRole && !isDoctorMode) {
@@ -304,8 +312,8 @@ const AssessmentStep: React.FC<Props> = ({
       };
       setPendingUser(mockDoctor);
       setAnswers((prev) => ({ ...prev, basic_name: docName }));
-      // Let doctor either go straight to assessment or complete clinical baseline
-      setStepStage('questions');
+      // Let doctor select cohort for the patient
+      setStepStage('cohort_select');
       if (onSelfLogin) onSelfLogin(mockDoctor);
       return;
     }
@@ -329,7 +337,7 @@ const AssessmentStep: React.FC<Props> = ({
       setPendingUser(newFamilyUser);
       setAnswers((prev) => ({ ...prev, basic_name: displayName }));
       if (onSelfLogin) onSelfLogin(newFamilyUser);
-      setStepStage('questions');
+      setStepStage('cohort_select');
       return;
     }
 
@@ -348,7 +356,7 @@ const AssessmentStep: React.FC<Props> = ({
     setPendingUser(newSelfUser);
     setAnswers((prev) => ({ ...prev, basic_name: displayName }));
     if (onSelfLogin) onSelfLogin(newSelfUser);
-    setStepStage('questions');
+    setStepStage('cohort_select');
   };
 
   const handleDoctorInstantLaunch = () => {
@@ -957,7 +965,55 @@ const AssessmentStep: React.FC<Props> = ({
   }
 
   // ============================================================================
-  // STAGE 4: CLINICAL ASSESSMENT FORM (120-Point Mapping)
+  // STAGE 3.5: POPULATION COHORT SELECTOR
+  // ============================================================================
+  if (stepStage === 'cohort_select') {
+    return (
+      <CohortSelector
+        lang={lang}
+        darkMode={darkMode}
+        onSelectCohort={(cohort, selectedMonth) => {
+          setSelectedCohort(cohort);
+          if (selectedMonth) setSelectedPregnancyMonth(selectedMonth);
+          setStepStage('cohort_questions');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onBack={() => setStepStage('profile_setup')}
+      />
+    );
+  }
+
+  // ============================================================================
+  // STAGE 3.6: COHORT-SPECIFIC IN-DEPTH ASSESSMENT & LAB FORM
+  // ============================================================================
+  if (stepStage === 'cohort_questions') {
+    return (
+      <CohortAssessmentForm
+        cohort={selectedCohort}
+        initialPregnancyMonth={selectedPregnancyMonth}
+        user={pendingUser || user || null}
+        lang={lang}
+        darkMode={darkMode}
+        onComplete={(generatedProfile) => {
+          const enrichedProfile: HealthProfile = {
+            ...generatedProfile,
+            answers: {
+              ...generatedProfile.answers,
+              basic_name: pendingUser?.name || fullName || (isBn ? 'ইউজার' : 'User'),
+            },
+          };
+          onComplete(enrichedProfile, pendingUser?.name || fullName, pendingUser || undefined);
+        }}
+        onBackToCohortSelect={() => {
+          setStepStage('cohort_select');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
+    );
+  }
+
+  // ============================================================================
+  // STAGE 4: CLINICAL ASSESSMENT FORM (120-Point Mapping Fallback)
   // ============================================================================
   return (
     <div

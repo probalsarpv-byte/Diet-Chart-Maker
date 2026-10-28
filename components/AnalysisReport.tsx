@@ -3,6 +3,8 @@ import { HealthProfile, Language, TrafficLightGuide, TrafficLightFoodItem, FoodC
 import { translations } from '../i18n';
 import { GeminiService } from '../services/geminiService';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+import PregnancyMilestonesDashboard from './PregnancyMilestonesDashboard';
+import ChildDevelopmentMilestones from './ChildDevelopmentMilestones';
 
 interface Props {
   profile: HealthProfile;
@@ -520,6 +522,31 @@ const AnalysisReport: React.FC<Props> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Pregnancy Milestones Dashboard (Strictly visible ONLY for pregnancy_lactation) */}
+              {profile.cohortType === 'pregnancy_lactation' && (
+                <div className="mt-6">
+                  <PregnancyMilestonesDashboard
+                    currentPregnancyMonth={profile.pregnancyMonth || 1}
+                    lang={lang}
+                    darkMode={darkMode}
+                  />
+                </div>
+              )}
+
+              {/* Child Development Milestones & Catch-Up Engine (Strictly visible ONLY for child_pediatric) */}
+              {profile.cohortType === 'child_pediatric' && (
+                <div className="mt-6">
+                  <ChildDevelopmentMilestones
+                    childAgeGroup={profile.childAgeGroup || '1-3'}
+                    childAgeYears={profile.age}
+                    childWeightKg={profile.weight}
+                    childHeightCm={profile.height}
+                    lang={lang}
+                    darkMode={darkMode}
+                  />
+                </div>
+              )}
 
               {/* Next Screen Action Inside Report */}
               <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">

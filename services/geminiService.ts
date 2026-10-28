@@ -14,7 +14,23 @@ import {
   UnifiedFamilyDiet,
   TrafficLightGuide,
   TrafficLightFoodItem,
+  Phase,
+  DailyCalorieLog,
+  MakerCheckerVerification,
 } from "../types";
+import { CohortDietEngine } from "./cohortDietEngine";
+import { getUserGeminiAccount, MakerCheckerEngine } from "./aiModeService";
+
+export interface FoodSafetyVerdict {
+  foodName: string;
+  zone: "green" | "yellow" | "red";
+  verdictTitle: string;
+  clinicalReason: string;
+  ayurvedicAndCohortNote: string;
+  healthySwap: string;
+  bestTimingOrPortion: string;
+  verification?: MakerCheckerVerification;
+}
 
 export class GeminiService {
   private getLangName(lang: Language): string {
@@ -32,17 +48,30 @@ export class GeminiService {
     contents: any;
     config?: any;
   }): Promise<string> {
+    const userAccount = getUserGeminiAccount();
+    // By default (when user hasn't enabled their personal Gemini account),
+    // execute 100% zero-cost ($0) instantaneously without network wait.
+    if (!userAccount.enabled) {
+      return "";
+    }
+
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 14500);
+    const timer = setTimeout(() => controller.abort(), 9500);
     try {
       const response = await fetch("/api/gemini/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(userAccount.accountEmail
+            ? { "X-User-Gemini-Account": userAccount.accountEmail }
+            : {}),
+        },
         signal: controller.signal,
         body: JSON.stringify({
           model: params.model || "gemini-3.8-flash",
           contents: params.contents,
           config: params.config,
+          userGeminiAccount: userAccount.accountEmail || "connected",
         }),
       });
 
@@ -583,23 +612,24 @@ export class GeminiService {
     });
 
     const fallbackDinacharya: DinacharyaSchedule = {
-      wakeTime: "05:30 AM",
-      sleepTime: "10:15 PM",
-      rituals: [
+      scheduleName: lang === "bn" ? "আয়ুর্বেদিক দিনচর্যা" : "Ayurvedic Dinacharya",
+      doshaFocus: `${profile.dosha} Balance`,
+      brahmaMuhurta: "04:30 AM",
+      activities: [
         {
           time: "05:45 AM",
-          activity: lang === "bn" ? "জিহ্বা পরিষ্কার ও কুসুম গরম ডিটক্স পানি পান" : "Tongue Scraping & Warm Detox Water",
-          doshaLogic: `${profile.dosha} Ama clearance`,
+          name: lang === "bn" ? "জিহ্বা পরিষ্কার ও ডিটক্স জল" : "Tongue Scraping & Warm Water",
+          type: "Hygiene",
+          description: lang === "bn" ? "জিহ্বা পরিষ্কার ও কুসুম গরম ডিটক্স পানি পান" : "Tongue Scraping & Warm Detox Water",
           voiceScript: lang === "bn" ? "সকালে খালি পেটে কুসুম গরম পানি পান করুন।" : "Begin your morning with warm water to awaken digestive Agni.",
-          category: "Hygiene",
           timerSeconds: 180,
         },
         {
           time: "01:30 PM",
-          activity: lang === "bn" ? "দুপুরের প্রধান খাবার (পিক অগ্নি উইন্ডো)" : "Midday Main Meal (Peak Agni Window)",
-          doshaLogic: "Peak solar Pitta digestive fire",
+          name: lang === "bn" ? "দুপুরের প্রধান খাবার" : "Midday Main Meal",
+          type: "Meal",
+          description: lang === "bn" ? "দুপুরের প্রধান খাবার (পিক অগ্নি উইন্ডো)" : "Midday Main Meal (Peak Agni Window)",
           voiceScript: lang === "bn" ? "মনোযোগ দিয়ে ধীরে ধীরে খাবার চিবিয়ে খান।" : "Eat mindfully during peak digestive fire.",
-          category: "Meals",
         },
       ],
     };
@@ -615,6 +645,18 @@ export class GeminiService {
     assessment?: AssessmentData,
     weather?: WeatherData
   ): Promise<DietPhaseChart> {
+    // If Pregnancy & Lactation cohort, immediately route to the Ayurvedic Masanumasika Engine
+    // to strictly enforce month-by-month fetal milestones and ZERO herbs rules, then run Checker verification.
+    if (profile.cohortType === 'pregnancy_lactation') {
+      const pregChart = CohortDietEngine.generateCohortDietChart(
+        profile,
+        currentPhase as Phase,
+        currentWeek,
+        lang
+      );
+      return MakerCheckerEngine.verifyDietChart(pregChart, profile, lang);
+    }
+
     const locationInfo = profile.location
       ? `User Location: Lat ${profile.location.latitude}, Lng ${profile.location.longitude}.`
       : "User Location: Bangladesh / South Asia.";
@@ -797,11 +839,11 @@ export class GeminiService {
       });
 
       if (!text) {
-        return baseChart;
+        return MakerCheckerEngine.verifyDietChart(baseChart, profile, lang);
       }
 
       const aiSummary = this.safeParseJson<Partial<DietPhaseChart>>(text, {});
-      return this.enrichChartWithClinicalDefaults(
+      const enriched = this.enrichChartWithClinicalDefaults(
         {
           ...baseChart,
           ...(aiSummary.phaseName ? { phaseName: aiSummary.phaseName } : {}),
@@ -831,8 +873,9 @@ export class GeminiService {
         hasHypoacidity,
         redFoodsList
       );
+      return MakerCheckerEngine.verifyDietChart(enriched, profile, lang);
     } catch {
-      return baseChart;
+      return MakerCheckerEngine.verifyDietChart(baseChart, profile, lang);
     }
   }
 
@@ -1554,15 +1597,19 @@ export class GeminiService {
       contents: { parts: [{ text: prompt }] },
       config: { responseMimeType: "application/json" },
     });
+    const fallbackFresh = (lang === "bn"
+      ? ["পালং শাক ও লাল শাক", "লাউ ও ঝিঙে", "রুই/শিং মাছ ও দেশি ডিম", "লেবু, আদা ও আমলকী"]
+      : ["Spinach & Red Amaranth", "Bottle Gourd", "River Fish & Eggs", "Lemon & Ginger"]
+    ).map((name) => ({ name, quantity: lang === "bn" ? "১ কেজি / পরিমিত" : "1 kg / moderate", checked: false }));
+
+    const fallbackGrocery = (lang === "bn"
+      ? ["লাল চাল / ব্রাউন রাইস", "চিয়া সিড ও তিসি", "খাঁটি দেশি ঘি", "হিমালয়ান পিংক সল্ট"]
+      : ["Red Rice", "Chia Seeds", "Pure Deshi Ghee", "Himalayan Pink Salt"]
+    ).map((name) => ({ name, quantity: lang === "bn" ? "১ প্যাকেট / পরিমিত" : "1 pack / moderate", checked: false }));
+
     return this.safeParseJson<ShoppingList>(text, {
-      freshMarket:
-        lang === "bn"
-          ? ["পালং শাক ও লাল শাক", "লাউ, কাঁচা পেঁপে ও ঝিঙে", "রুই/শিং মাছ ও দেশি ডিম", "লেবু, আদা ও আমলকী"]
-          : ["Spinach & Red Amaranth", "Bottle Gourd & Green Papaya", "River Fish & Deshi Eggs", "Lemon, Ginger & Amla"],
-      groceryStore:
-        lang === "bn"
-          ? ["লাল চালের ভাত / ব্রাউন রাইস", "চিয়া সিড, তিসি ও মিষ্টি কুমড়ার বীজ", "খাঁটি দেশি ঘি ও ঘানি ভাঙা সরিষার তেল", "হিমালয়ান পিংক সল্ট"]
-          : ["Hand-pounded Red Rice", "Chia, Flax & Pumpkin Seeds", "Pure Deshi Ghee & Cold-Pressed Mustard Oil", "Himalayan Pink Salt"],
+      freshMarket: fallbackFresh,
+      groceryStore: fallbackGrocery,
       pantryTip:
         lang === "bn"
           ? "সয়াবিন তেল ও সাদা চিনি সম্পূর্ণ বর্জন করে কাঁচের বয়ামে সিডস ও বাদাম সংরক্ষণ করুন।"
@@ -1570,30 +1617,506 @@ export class GeminiService {
     });
   }
 
+  private buildIndividualizedContextSummary(
+    profile: HealthProfile,
+    currentPhase: number,
+    lang: Language,
+    currentChart?: DietPhaseChart | null,
+    todayLog?: DailyCalorieLog | null
+  ): string {
+    const heightM = (profile.height || 165) / 100;
+    const bmi = Number(((profile.weight || 65) / (heightM * heightM)).toFixed(1));
+    const cohort = profile.cohortType || "adult_metabolic";
+
+    let cohortDetails = `Cohort: ${cohort}`;
+    if (cohort === "pregnancy_lactation") {
+      if (profile.lactationStage && profile.lactationStage !== "none") {
+        cohortDetails = `Lactating Mother (Stage: ${profile.lactationStage}). Needs +450 to +500 kcal, high calcium, iron, hydration, galactagogue whole foods (lau/bottle gourd, soaked almonds, red rice, small fish). STRICT ZERO HERBS RULE: Never prescribe Ashwagandha, Shatavari, Triphala, or concentrated herbal extracts.`;
+      } else {
+        const m = profile.pregnancyMonth || 4;
+        cohortDetails = `Pregnant Mother — Ayurvedic Masanumasika Month ${m} of 9. Follow Classical Charaka/Sushruta Masanumasika food-only nourishment (milk, A2 ghee, soft rice, moong dal, pomegranate, folate/iron/choline foods) paired with Functional Obstetrics. STRICT ZERO HERBS RULE: NEVER suggest medicinal herbs or bhasmas.`;
+      }
+    } else if (cohort === "child_pediatric") {
+      cohortDetails = `Pediatric Child Nutrition (Age Group: ${profile.childAgeGroup || "4-6"} years). Focus on neuro-development (DHA, choline, iron, zinc), linear bone growth (calcium, Vit D3, quality protein), brain-gut health, and zero ultra-processed sugars.`;
+    } else if (cohort === "oncology_cancer") {
+      cohortDetails = `Oncology Nutritional Support (Phase: ${profile.oncologyPhase || "chemo_active"}). Focus on anti-cachexia high-protein soft easily digestible meals, neutropenic food safety (strictly no raw salads/unpasteurized items during active chemo), nausea relief (ginger/lemon infusion), and mucosal healing.`;
+    } else if (cohort === "adolescent_growth") {
+      cohortDetails = `Adolescent Growth & Hormonal Balance (Subtype: ${profile.adolescentSubtype || "girl_puberty"}). Focus on iron & folate replenishment, insulin/PCOS balance, bone peak mass, and exam cognitive stamina.`;
+    } else {
+      cohortDetails = `Adult Metabolic & Functional Reversal. Conditions: ${profile.medicalConditions || "General Metabolic Wellness"}.`;
+    }
+
+    const dinnerRuleMap: Record<string, string> = {
+      vegetable_carbs: "No grain/rice/roti at dinner — only cooked low-GI vegetable carbs + protein",
+      cereal_allowed: "Moderate complex grain (red rice / whole wheat roti) allowed at dinner",
+      no_carbs: "Strict zero-carb ketogenic/therapeutic protein + healthy fat dinner",
+    };
+    const dinnerRuleDesc = dinnerRuleMap[profile.dinnerCarbRule || "vegetable_carbs"];
+
+    const greenFoods =
+      profile.trafficLightGuide?.green
+        ?.slice(0, 10)
+        .map((f) => f.name)
+        .join(", ") ||
+      (profile.selectedFoods ? Object.values(profile.selectedFoods).flat().slice(0, 10).join(", ") : "Laau, Pui Shak, Small Fish, Egg, Moong Dal");
+    const yellowFoods =
+      profile.trafficLightGuide?.yellow
+        ?.slice(0, 6)
+        .map((f) => f.name)
+        .join(", ") || "Red Rice (limited), Sweet Potato, Ripe Mango (small slice)";
+    const redFoods =
+      profile.trafficLightGuide?.red
+        ?.slice(0, 8)
+        .map((f) => f.name)
+        .join(", ") || "Refined Sugar, Soybean Oil, White Flour (Maida), Deep Fried Snacks, Soft Drinks";
+
+    const chartSummary = currentChart
+      ? `Active Diet Chart (${currentChart.title}, Target: ${currentChart.dailyCalorieTarget || 1650} kcal, Protein: ${currentChart.macros?.protein || 65}g, Carbs: ${currentChart.macros?.carbs || 160}g, Fats: ${currentChart.macros?.fats || 55}g):
+      - Morning Detox: ${currentChart.SampleDay?.morningDetox?.name || "Warm Detox Water"}
+      - Breakfast: ${currentChart.SampleDay?.morning?.name || "Eggs & Vegetables"} (${currentChart.SampleDay?.morning?.quantity || ""})
+      - Lunch: ${currentChart.SampleDay?.midDay?.name || "Red Rice, Fish & Greens"} (${currentChart.SampleDay?.midDay?.quantity || ""})
+      - Evening Snack: ${currentChart.SampleDay?.afternoon?.name || "Seeds & Nuts"} (${currentChart.SampleDay?.afternoon?.quantity || ""})
+      - Dinner: ${currentChart.SampleDay?.evening?.name || "Protein & Cooked Vegetable Soup"} (${currentChart.SampleDay?.evening?.quantity || ""})`
+      : `Phase ${currentPhase} Protocol (${profile.mealFrequency || 3} meals/day, Dinner Rule: ${dinnerRuleDesc})`;
+
+    const loggedCalories = todayLog
+      ? todayLog.items.reduce((acc, item) => acc + (item.calories || 0), 0)
+      : 0;
+    const loggedProtein = todayLog
+      ? todayLog.items.reduce((acc, item) => acc + (item.protein || 0), 0)
+      : 0;
+    const todayLogSummary = todayLog
+      ? `Today's Calorie Tracker Log: ${loggedCalories} / ${todayLog.targetCalories} kcal consumed (${Math.round(loggedProtein)}g protein), Water: ${todayLog.waterGlasses} glasses. Foods eaten today: ${todayLog.items.map((i) => (lang === "bn" ? i.nameBn : i.nameEn)).join(", ") || "None logged yet"}.`
+      : "No meals logged yet today.";
+
+    const labMarkers = profile.cohortLabMarkers
+      ? Object.entries(profile.cohortLabMarkers)
+          .filter(([, v]) => v)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(", ")
+      : "";
+
+    return `
+=== INDIVIDUALIZED PATIENT CLINICAL CONTEXT ===
+- Age/Gender: ${profile.age} yrs, ${profile.gender}, Weight: ${profile.weight} kg, Height: ${profile.height} cm (BMI: ${bmi})
+- Ayurvedic Prakriti/Vikriti Dosha: ${profile.dosha} | Gut Microbiome Score: ${profile.microbiomeScore}/100 | Inflammatory Index: ${profile.inflammatoryIndex}/10 | Metabolic Type: ${profile.metabolicType}
+- ${cohortDetails}
+- Medical Conditions: ${profile.medicalConditions || "None reported"}
+- Current Medications: ${profile.currentMedicationsList?.join(", ") || profile.medications || "None"}
+- Lab Markers: ${labMarkers || "Standard clinical baseline"}
+- Meal Frequency: ${profile.mealFrequency || 3} meals/day | Hypoacidity/Bloating: ${profile.hasHypoacidity ? "Yes (needs pre-meal ginger-pink salt digestive primer, avoid raw cold foods)" : "No"}
+- Dinner Carb Rule: ${dinnerRuleDesc}
+- Traffic Light Food Guide:
+  * GREEN (Eat Freely): ${greenFoods}
+  * YELLOW (Portion Controlled): ${yellowFoods}
+  * RED (Strictly Avoid): ${redFoods}
+- ${chartSummary}
+- ${todayLogSummary}
+- Safety Alerts: ${profile.cohortSafetyAlerts?.join(" | ") || "Maintain portion discipline and hydration"}
+===============================================
+`.trim();
+  }
+
+  private generateIndividualizedFallbackReply(
+    query: string,
+    profile: HealthProfile,
+    currentPhase: number,
+    lang: Language,
+    currentChart?: DietPhaseChart | null,
+    todayLog?: DailyCalorieLog | null
+  ): string {
+    const isBn = lang === "bn";
+    const q = query.toLowerCase();
+    const cohort = profile.cohortType || "adult_metabolic";
+    const heightM = (profile.height || 165) / 100;
+    const bmi = ((profile.weight || 65) / (heightM * heightM)).toFixed(1);
+    const loggedCals = todayLog
+      ? todayLog.items.reduce((s, i) => s + (i.calories || 0), 0)
+      : 755;
+    const targetCals = currentChart?.dailyCalorieTarget || todayLog?.targetCalories || 1650;
+
+    // 1. Pregnancy / Masanumasika specific questions
+    if (cohort === "pregnancy_lactation" || q.includes("গর্ভ") || q.includes("প্রেগন্যান্ট") || q.includes("pregnan") || q.includes("masanumasika") || q.includes("মাসানু")) {
+      const m = profile.pregnancyMonth || 4;
+      const monthFocusBn: Record<number, string> = {
+        1: "১ম মাস (কলল পর্যায়): ভ্রূণের ইমপ্লান্টেশন ও ফোলেট সুরক্ষা — দুধ, ভেজানো কাঠবাদাম, ডালিম ও মুগ ডালের পাতলা সুপ গ্রহণ করুন।",
+        2: "২য় মাস (ঘন পর্যায়): টিস্যু গঠন — খাঁটি দুধ, পালং শাক, লাল শাক ও মিষ্টি ফলের রসের মাধ্যমে ক্যালসিয়াম ও ফলেট নিশ্চিত করুন।",
+        3: "৩য় মাস (অঙ্গ-প্রত্যঙ্গের অঙ্কুরোদগম): ইন্দ্রিয় ও স্নায়ু বিকাশ — দুধের সাথে সামান্য খাঁটি মধু ও ১ চামচ দেশি ঘি, সাথে ডিম ও ছোট মাছ রাখুন।",
+        4: "৪র্থ মাস (হৃদস্পন্দন ও টিস্যু স্থায়িত্ব): শিশুর ওজন ও রক্ত প্রবাহ বৃদ্ধি — দুধের মাখন/ঘি, দেশি মুরগি বা মাছের ঝোল, ডাল ও আয়রন সমৃদ্ধ খাবার গ্রহণ করুন।",
+        5: "৫ম মাস (মন ও চেতনার বিকাশ): মস্তিষ্কের কোষ গঠনে ওমেগা-৩, কোলিন (সিদ্ধ ডিম) ও দেশি ঘি অত্যন্ত জরুরি।",
+        6: "৬ষ্ঠ মাস (বুদ্ধি ও অস্থি মজবুতকরণ): পায়ে পানি আসা বা ফোলাভাব কমাতে লাউ, ঝিঙে, ডাবের পানি ও পর্যাপ্ত প্রোটিন গ্রহণ করুন।",
+        7: "৭ম মাস (পূর্ণাঙ্গ অঙ্গ পরিপক্কতা): অ্যাসিডিটি ও কোষ্ঠকাঠিন্য এড়াতে অল্প করে বারবার (৪ বেলা) সহজপাচ্য খাবার ও মিষ্টি ডালিম খান।",
+        8: "৮ম মাস (ওজঃ বা জীবনীশক্তি স্থিতিশীলতা): শক্তি ধরে রাখতে নরম ভাত/জাউ, দুধ ও ঘি গ্রহণ করুন এবং অতিরিক্ত ঝাল-ভাজাপোড়া বর্জন করুন।",
+        9: "৯ম মাস (প্রসব প্রস্তুতি): সহজে স্বাভাবিক প্রসব ও স্তন্যদানের প্রস্তুতিতে হালকা সুপ, নরম সবজি ও কুসুম গরম দুধ পান করুন।",
+      };
+      if (isBn) {
+        return `**আপনার প্রোফাইল বিশ্লেষণ (${profile.dosha} দোষ | গর্ভাবস্থার ${m}ম মাস - মাসানুমাসিক প্রোটোকল):**\n\n• **এই মাসের বিশেষ ফোকাস:** ${monthFocusBn[m] || monthFocusBn[4]}\n• **আপনার বর্তমান ডায়েট লক্ষ্যমাত্রা:** প্রতিদিন প্রায় **${targetCals} kcal** এবং **${currentChart?.macros?.protein || 72}g প্রোটিন**।\n• **নিরাপদ খাবার (Green Zone):** সিদ্ধ ডিম (কোলিন), ছোট মাছ, মুগ ডাল, লাউ, পালং শাক, ডালিম ও ১ চামচ দেশি ঘি।\n• **সতর্কতা (Zero Herbs Rule):** গর্ভাবস্থায় কোনো ভেষজ চূর্ণ বা হার্বস (যেমন অশ্বগন্ধা, শতাবরী বা ত্রিফলা) গ্রহণ করবেন না; শুধুমাত্র প্রাকৃতিক খাবার থেকেই পুষ্টি গ্রহণ করুন।`;
+      }
+      return `**Individualized Masanumasika Analysis (${profile.dosha} Dosha | Pregnancy Month ${m}):**\n\n• **Monthly Developmental Focus:** Month ${m} prioritizes fetal tissue stability, choline/DHA neuro-nutrition, and maternal hemoglobin.\n• **Your Daily Target:** **${targetCals} kcal** with **${currentChart?.macros?.protein || 72}g protein**.\n• **Recommended Whole Foods:** Pastured boiled eggs, small river fish, moong dal, bottle gourd, pomegranate, and 1 tsp pure A2 ghee.\n• **Clinical Safety Rule:** Strictly zero medicinal herbs or concentrated extracts—rely 100% on food-based nourishment.`;
+    }
+
+    // 2. Child / Pediatric questions
+    if (cohort === "child_pediatric" || q.includes("বাচ্চা") || q.includes("শিশু") || q.includes("child") || q.includes("লম্বা") || q.includes("মেধা")) {
+      const ageGrp = profile.childAgeGroup || "4-6";
+      if (isBn) {
+        return `**শিশুর গ্রোথ ও মাইলস্টোন গাইড (${ageGrp} বছর | ${profile.dosha} প্রকৃতি):**\n\n• **শারীরিক বৃদ্ধি ও উচ্চতা:** হাড়ের বৃদ্ধির জন্য প্রতিদিন ১টি ডিম, ছোট মাছ (কাঁটাসহ চিবানো বা কাটা বাছা মাছ), মুগ ডাল এবং মৌসুমি সবজি নিশ্চিত করুন।\n• **মস্তিষ্কের বিকাশ (Brain & Focus):** সকালের নাস্তায় ভেজানো কাঠবাদাম (৪-৫টি), আখরোট ও দেশি ঘি যুক্ত খাবার দিন।\n• **বর্জনীয় (Red Zone):** প্যাকেটজাত চিপস, নুডলস, সয়াবিন তেল ও অতিরিক্ত চিনি শিশুর গাট মাইক্রোবায়োম ও মনোযোগ কমিয়ে দেয়।`;
+      }
+      return `**Pediatric Growth & Milestone Protocol (Age ${ageGrp} yrs | ${profile.dosha} Profile):**\n\n• **Linear Growth & Bone Density:** Include 1-2 boiled eggs, river fish, moong dal, and calcium-rich greens daily.\n• **Brain & Cognitive Focus:** Add soaked almonds, walnuts, and 1 tsp pure ghee to morning meals for DHA and choline.\n• **Avoid (Red Zone):** Eliminate packaged snacks, refined sugar, and seed oils to protect gut-brain immunity.`;
+    }
+
+    // 3. Oncology / Cancer Support questions
+    if (cohort === "oncology_cancer" || q.includes("ক্যান্সার") || q.includes("কেমো") || q.includes("chemo") || q.includes("oncology")) {
+      if (isBn) {
+        return `**অনকোলজি নিউট্রিশন ও রিকভারি প্রোটোকল (${profile.dosha} দোষ | ফেজ ${currentPhase}):**\n\n• **অ্যান্টি-ক্যাশেক্সিয়া প্রোটিন সাপোর্ট:** শরীরের পেশি ক্ষয় রোধে প্রতিদিন নরম সিদ্ধ ডিম, দেশি মাছের পাতলা ঝোল, মুগ ডালের সুপ ও দেশি মুরগির স্টু অল্প অল্প করে বারবার গ্রহণ করুন।\n• **বমিভাব ও মুখের অরুচি রোধে:** খাবারের আগে তাজা আদা-লেবুর কুসুম গরম পানি ও ডালিমের রস গ্রহণ করুন।\n• **নিউট্রোপেনিক খাদ্য নিরাপত্তা:** কেমো বা থেরাপি চলাকালীন কাঁচা সালাদ বা আধা-সিদ্ধ খাবার সম্পূর্ণ বর্জন করুন; সব খাবার ভালোভাবে ফুটিয়ে ও গরম অবস্থায় খান।`;
+      }
+      return `**Oncology Nutritional Support (${profile.dosha} Dosha | Phase ${currentPhase}):**\n\n• **Anti-Cachexia Protein Density:** Prioritize soft boiled eggs, clear river fish broth, moong dal soup, and shredded chicken stew in small frequent meals.\n• **Nausea & Mucosal Relief:** Sip warm ginger-lemon infusion and fresh pomegranate juice.\n• **Neutropenic Safety:** Strictly avoid raw salads or unpasteurized foods; consume only freshly cooked warm meals.`;
+    }
+
+    // 4. Diabetes / Insulin Resistance / PCOS / Blood Sugar questions
+    if (q.includes("ডায়াবেটিস") || q.includes("সুগার") || q.includes("ইনসুলিন") || q.includes("pcos") || q.includes("diabet") || q.includes("sugar")) {
+      if (isBn) {
+        return `**আপনার ব্লাড সুগার ও ইনসুলিন নিয়ন্ত্রণ প্রোটোকল (${profile.dosha} দোষ | BMI: ${bmi}):**\n\n• **গ্লাইসেমিক সিকোয়েন্সিং:** প্রতি বেলা খাবারের শুরুতে আগে শাকসবজি ও প্রোটিন (মাছ/ডিম) খান, এবং সবশেষে পরিমিত লাল চালের ভাত খান—এতে পোস্ট-মিল সুগার স্পাইক ৩৫% পর্যন্ত কমে।\n• **রাতের শর্করা নিয়ম:** রাতে ভাত বা আটার রুটি বাদ দিয়ে লাউ সিদ্ধ, পেঁপে সিদ্ধ বা ফুলকপির রাইসের সাথে মাছ/ডিম গ্রহণ করুন।\n• **প্রাকৃতিক ইনসুলিন সহায়ক:** করলা, সজনে ডাটা, মেথি-জিরা ডিটক্স ওয়াটার এবং খাবারের পর ১৫ মিনিট হাঁটা আপনার ইনসুলিন সংবেদনশীলতা দ্রুত বাড়াবে।`;
+      }
+      return `**Personalized Glycemic & Insulin Protocol (${profile.dosha} Dosha | BMI: ${bmi}):**\n\n• **Meal Sequencing:** Eat fiber/greens and protein (fish/egg) first before complex carbs to blunt post-meal glucose spikes by up to 35%.\n• **Night Carb Rule:** Replace night grains with boiled bottle gourd (Lau), green papaya, or cauliflower rice paired with protein.\n• **Metabolic Activators:** Morning CCF fenugreek water and a 15-minute post-meal brisk walk.`;
+    }
+
+    // 5. Gas / Acidity / Bloating / Gut Microbiome questions
+    if (q.includes("গ্যাস") || q.includes("অ্যাসিডিটি") || q.includes("পেট ফাঁপা") || q.includes("কোষ্ঠকাঠিন্য") || q.includes("হজম") || q.includes("acidity") || q.includes("bloat") || q.includes("gas")) {
+      if (isBn) {
+        return `**আপনার গাট মাইক্রোবায়োম ও হজমশক্তি (Agni) প্রোটোকল (স্কোর: ${profile.microbiomeScore}/100):**\n\n• **হাইপোঅ্যাসিডিটি প্রাইমার:** দুপুর ও রাতের খাবারের ঠিক ১৫ মিনিট আগে ১ চামচ আদার রস + ১ চামচ লেবুর রস + ১ চিমটি হিমালয়ান পিংক সল্ট ৫০ মিলি কুসুম গরম পানিতে মিশিয়ে পান করুন।\n• **সহজপাচ্য খাবার (Green Zone):** লাউ, কাঁচা পেঁপে সিদ্ধ, পাতলা মুগ ডাল, শিং/মাগুর মাছের ঝোল ও দুপুরে ঘরে পাতা টক দই।\n• **বর্জনীয়:** দুধ চা, বিস্কুট, সয়াবিন তেল, অতিরিক্ত কাঁচা সালাদ (রাতে) এবং খাবারের সাথে সাথে অতিরিক্ত ঠান্ডা পানি পান।`;
+      }
+      return `**Gut Microbiome & Digestive Agni Protocol (Score: ${profile.microbiomeScore}/100):**\n\n• **Pre-Meal Digestive Primer:** Take 1 tsp fresh ginger juice + lemon + pinch of Himalayan pink salt in 50ml warm water 15 mins before lunch.\n• **Gut-Soothing Foods:** Boiled bottle gourd, green papaya, thin moong dal, and midday probiotic sour curd.\n• **Avoid:** Milk tea with biscuits, refined soybean oil, and drinking cold water during meals.`;
+    }
+
+    // 6. Dinner / Night meal questions
+    if (q.includes("রাত") || q.includes("ডিনার") || q.includes("dinner") || q.includes("ভাত") || q.includes("রুটি")) {
+      const dinnerMeal = currentChart?.SampleDay?.evening?.name || (isBn ? "গ্রিলড মাছ/মুরগি ও মিক্সড সবজি স্যুপ" : "Grilled Fish/Chicken & Mixed Vegetable Soup");
+      const ruleTextBn =
+        profile.dinnerCarbRule === "vegetable_carbs"
+          ? "আপনার মেটাবলিক প্রোফাইল অনুযায়ী রাতে চাল বা আটার রুটি না খেয়ে **সবজির কার্বোহাইড্রেট + প্রোটিন** গ্রহণ করা সবচেয়ে কার্যকর।"
+          : profile.dinnerCarbRule === "no_carbs"
+          ? "আপনার থেরাপিউটিক লক্ষ্য অনুযায়ী রাতের খাবার **লো-কার্ব প্রোটিন ও হেলদি ফ্যাট** সমৃদ্ধ রাখা প্রয়োজন।"
+          : "আপনি রাতে পরিমিত পরিমাণে লাল চালের ভাত বা ১টি লাল আটার রুটির সাথে প্রোটিন ও সবজি খেতে পারেন।";
+
+      if (isBn) {
+        return `**আপনার ডিনার গাইড (${profile.dosha} দোষ | BMI: ${bmi}):**\n\n• **আপনার রাতের কার্ব নিয়ম:** ${ruleTextBn}\n• **আপনার চার্টের সাজেস্টেড ডিনার:** **${dinnerMeal}** (${currentChart?.SampleDay?.evening?.quantity || "১ বড় বাটি"})।\n• **ক্লিনিক্যাল কারণ:** রাত ৮টার মধ্যে ডিনার শেষ করলে রাতের ইনসুলিন স্পাইক কমে, লিভার ডিটক্স ও গভীর ঘুম ভালো হয়।`;
+      }
+      return `**Personalized Dinner Protocol (${profile.dosha} Dosha | BMI: ${bmi}):**\n\n• **Your Dinner Carb Rule:** ${profile.dinnerCarbRule === "vegetable_carbs" ? "Replace grains with cooked low-GI vegetables + clean protein at night." : "Moderate complex carbs paired with protein and fiber."}\n• **Your Chart's Dinner:** **${dinnerMeal}** (${currentChart?.SampleDay?.evening?.quantity || "1 bowl"}).\n• **Clinical Tip:** Finish dinner at least 2.5–3 hours before sleep to optimize overnight insulin sensitivity.`;
+    }
+
+    // 7. Default personalized clinical summary response
+    const greenSample =
+      profile.trafficLightGuide?.green
+        ?.slice(0, 4)
+        .map((f) => f.name)
+        .join(", ") || (isBn ? "লাউ, পালং শাক, দেশি মাছ, সিদ্ধ ডিম" : "Bottle gourd, spinach, river fish, boiled eggs");
+
+    if (isBn) {
+      return `**আপনার ব্যক্তিগতকৃত নিউট্রিশন পরামর্শ (${profile.dosha} দোষ | ফেজ ${currentPhase}):**\n\n• **আজকের ক্যালোরি ট্র্যাকার আপডেট:** আপনি আজ **${loggedCals} / ${targetCals} kcal** গ্রহণ করেছেন।\n• **আপনার শারীরিক অবস্থা:** বয়স ${profile.age} বছর, BMI **${bmi}**, মাইক্রোবায়োম স্কোর **${profile.microbiomeScore}/100** (${profile.medicalConditions || "মেটাবলিক ব্যালেন্স"})।\n• **করণীয়:**\n  ১. আপনার **Green Zone** খাবারগুলো (${greenSample}) প্রতিদিনের প্লেটে প্রাধান্য দিন।\n  ২. ${profile.hasHypoacidity ? "আপনার হজমশক্তি (Agni) বাড়াতে মূল খাবারের ১৫ মিনিট আগে আদা ও হিমালয়ান পিংক সল্ট মিশ্রিত কুসুম গরম পানি পান করুন।" : "খাবারের মাঝে পর্যাপ্ত কুসুম গরম ডিটক্স ওয়াটার পান করুন।"}\n  ৩. দুপুরের খাবারে পর্যাপ্ত প্রোটিন (${currentChart?.macros?.protein || 65}g/দিন) এবং রাতের খাবারে হালকা সহজপাচ্য প্রোটিন ও সবজি রাখুন।`;
+    }
+
+    return `**Individualized Clinical Guidance (${profile.dosha} Dosha | Phase ${currentPhase}):**\n\n• **Today's Calorie Status:** **${loggedCals} / ${targetCals} kcal** logged.\n• **Your Biomarkers:** Age ${profile.age}, BMI **${bmi}**, Microbiome Score **${profile.microbiomeScore}/100** (${profile.medicalConditions || "Metabolic Optimization"}).\n• **Actionable Protocol:**\n  1. Prioritize your **Green Zone** foods (${greenSample}).\n  2. ${profile.hasHypoacidity ? "Take warm ginger + pink salt primer 15 mins before meals to support stomach acid." : "Maintain warm hydration between meals."}\n  3. Hit your daily protein target (**${currentChart?.macros?.protein || 65}g**) while keeping dinner light and early.`;
+  }
+
+  async coachChatWithVerification(
+    profile: HealthProfile,
+    currentPhase: number,
+    messages: ChatMessage[],
+    lang: Language,
+    currentChart?: DietPhaseChart | null,
+    todayLog?: DailyCalorieLog | null
+  ): Promise<{ text: string; verification: MakerCheckerVerification }> {
+    const targetLang = this.getLangName(lang);
+    const last = messages[messages.length - 1];
+    const recentHistory = messages
+      .slice(-6)
+      .map((m) => `${m.sender === "user" ? "Patient" : "AI Coach"}: ${m.text}`)
+      .join("\n");
+
+    const contextBlock = this.buildIndividualizedContextSummary(
+      profile,
+      currentPhase,
+      lang,
+      currentChart,
+      todayLog
+    );
+
+    const prompt = `
+You are an empathetic, senior Functional Nutritionist & Ayurvedic Clinical Coach.
+Answer the patient's question strictly personalized to their exact clinical profile, active diet chart, Traffic Light food list, and cohort milestone below.
+
+${contextBlock}
+
+=== RECENT CONVERSATION ===
+${recentHistory}
+
+=== INSTRUCTIONS FOR YOUR RESPONSE ===
+1. Reply strictly in ${targetLang} (use natural, clear, encouraging clinical language).
+2. Directly reference the user's specific data (e.g., their ${profile.dosha} Dosha, BMI, medical condition "${profile.medicalConditions || "Wellness"}", cohort stage, dinner carb rule, or today's calorie log) so the answer feels 100% individualized.
+3. If the user asks about a food item, explicitly state whether it falls into their GREEN, YELLOW, or RED zone, explain the metabolic/Ayurvedic reason for THEIR body, and suggest a healthier local Bengali/South Asian swap if needed.
+4. CRITICAL SAFETY: If the user is in the Pregnancy/Lactation cohort, follow Ayurvedic Masanumasika month-by-month food wisdom but NEVER prescribe medicinal herbs or herbal supplements (Zero Herbs Rule).
+5. Keep the response concise, well-structured with bullet points (3 to 5 bullets max), and immediately actionable.
+`.trim();
+
+    // STAGE 1: MAKER (Draft Generation)
+    let draftText = await this.callServerGemini({
+      model: "gemini-3.8-flash",
+      contents: {
+        parts: [{ text: prompt }],
+      },
+    });
+
+    if (!draftText || !draftText.trim()) {
+      draftText = this.generateIndividualizedFallbackReply(
+        last?.text || "",
+        profile,
+        currentPhase,
+        lang,
+        currentChart,
+        todayLog
+      );
+    }
+
+    // STAGE 2: CHECKER (App's Gemini Clinical Verifier & Sanitizer)
+    const { verifiedText, verification } = MakerCheckerEngine.verifyTextOutput(
+      draftText,
+      profile,
+      lang
+    );
+
+    return {
+      text: verifiedText,
+      verification,
+    };
+  }
+
   async coachChat(
     profile: HealthProfile,
     currentPhase: number,
     messages: ChatMessage[],
-    lang: Language
+    lang: Language,
+    currentChart?: DietPhaseChart | null,
+    todayLog?: DailyCalorieLog | null
   ): Promise<string> {
+    const result = await this.coachChatWithVerification(
+      profile,
+      currentPhase,
+      messages,
+      lang,
+      currentChart,
+      todayLog
+    );
+    return result.text;
+  }
+
+  async checkFoodSafetyAndSwap(
+    foodQuery: string,
+    profile: HealthProfile,
+    currentPhase: number,
+    lang: Language,
+    currentChart?: DietPhaseChart | null
+  ): Promise<FoodSafetyVerdict> {
     const targetLang = this.getLangName(lang);
-    const last = messages[messages.length - 1];
-    const text = await this.callServerGemini({
-      model: "gemini-3.8-flash",
-      contents: {
-        parts: [
-          {
-            text: `Act as a Precision Nutrition Coach for a patient with ${profile.dosha} imbalance (${profile.medicalConditions || "General wellness"}). Reply in ${targetLang} to: ${last.text}`,
-          },
-        ],
-      },
-    });
-    if (!text) {
-      return lang === "bn"
-        ? `আপনার ${profile.dosha} দোষ ও মেটাবলিক প্রোফাইল অনুযায়ী প্রতিদিন পর্যাপ্ত প্রোটিন (১ গ্রাম/কেজি), সবুজ শাকসবজি এবং কুসুম গরম ডিটক্স পানি গ্রহণ করুন।`
-        : `For your ${profile.dosha} profile in Phase ${currentPhase}, prioritize 1g/kg protein, cooked seasonal greens, and warm herbal hydration between meals.`;
+    const contextBlock = this.buildIndividualizedContextSummary(
+      profile,
+      currentPhase,
+      lang,
+      currentChart,
+      null
+    );
+
+    const prompt = `
+Evaluate the food item "${foodQuery}" specifically for this patient based on their clinical profile and Traffic Light protocol:
+
+${contextBlock}
+
+Return a raw JSON object in ${targetLang} (no markdown blocks) matching this exact structure:
+{
+  "foodName": "Name of the food in ${targetLang}",
+  "zone": "green" | "yellow" | "red",
+  "verdictTitle": "Short clear verdict in ${targetLang} (e.g. 'নিরাপদ ও উপকারী (Green Zone)' or 'পরিমিত গ্রহণযোগ্য (Yellow Zone)' or 'বর্জনীয় (Red Zone)')",
+  "clinicalReason": "1-2 sentences explaining how this food affects THEIR specific conditions (${profile.medicalConditions || profile.dosha}), insulin/gut score (${profile.microbiomeScore}/100), or cohort stage",
+  "ayurvedicAndCohortNote": "1 sentence on how it interacts with their ${profile.dosha} Dosha and cohort stage (Remember: Zero Herbs in pregnancy)",
+  "healthySwap": "Best Green-Zone local food alternative or preparation method in ${targetLang}",
+  "bestTimingOrPortion": "Exact portion size and best time of day to eat (or 'সম্পূর্ণ বর্জন করুন / Avoid completely' if Red)"
+}
+`.trim();
+
+    const fallbackVerdict = this.buildFallbackFoodVerdict(foodQuery, profile, lang);
+
+    try {
+      // STAGE 1: MAKER
+      const text = await this.callServerGemini({
+        model: "gemini-3.8-flash",
+        contents: { parts: [{ text: prompt }] },
+        config: { responseMimeType: "application/json" },
+      });
+      if (!text) {
+        // STAGE 2: CHECKER
+        return MakerCheckerEngine.verifyFoodSafetyVerdict(
+          fallbackVerdict,
+          profile,
+          lang
+        );
+      }
+      const parsed = this.safeParseJson<FoodSafetyVerdict>(text, fallbackVerdict);
+      if (!parsed.zone || !["green", "yellow", "red"].includes(parsed.zone)) {
+        parsed.zone = fallbackVerdict.zone;
+      }
+      // STAGE 2: CHECKER
+      return MakerCheckerEngine.verifyFoodSafetyVerdict(parsed, profile, lang);
+    } catch {
+      return MakerCheckerEngine.verifyFoodSafetyVerdict(
+        fallbackVerdict,
+        profile,
+        lang
+      );
     }
-    return text;
+  }
+
+  private buildFallbackFoodVerdict(
+    foodQuery: string,
+    profile: HealthProfile,
+    lang: Language
+  ): FoodSafetyVerdict {
+    const isBn = lang === "bn";
+    const q = foodQuery.toLowerCase().trim();
+    const isPreg = profile.cohortType === "pregnancy_lactation";
+    const hasDiabetes =
+      (profile.medicalConditions || "").toLowerCase().includes("diabet") ||
+      (profile.medicalConditions || "").includes("ডায়াবেটিস") ||
+      (profile.medicalConditions || "").toLowerCase().includes("pcos");
+
+    // Check user's explicit traffic light lists first
+    const inGreen = profile.trafficLightGuide?.green?.find((f) =>
+      f.name.toLowerCase().includes(q)
+    );
+    const inYellow = profile.trafficLightGuide?.yellow?.find((f) =>
+      f.name.toLowerCase().includes(q)
+    );
+    const inRed = profile.trafficLightGuide?.red?.find((f) =>
+      f.name.toLowerCase().includes(q)
+    );
+
+    if (
+      inRed ||
+      q.includes("চিনি") ||
+      q.includes("sugar") ||
+      q.includes("সয়াবিন") ||
+      q.includes("soybean") ||
+      q.includes("ময়দা") ||
+      q.includes("পাঁপড়") ||
+      q.includes("ভাজা") ||
+      q.includes("সিঙাড়া") ||
+      q.includes("কোক") ||
+      q.includes("সফট ড্রিংক") ||
+      q.includes("বিরিয়ানি") ||
+      q.includes("গরুর মাংস") ||
+      q.includes("beef") ||
+      q.includes("খাসির মাংস") ||
+      q.includes("mutton") ||
+      q.includes("নুডলস") ||
+      q.includes("বিস্কুট") ||
+      q.includes("biscuit") ||
+      (isPreg &&
+        (q.includes("কাঁচা পেঁপে") ||
+          q.includes("আনারস") ||
+          q.includes("raw papaya") ||
+          q.includes("অশ্বগন্ধা") ||
+          q.includes("শতাবরী") ||
+          q.includes("ত্রিফলা")))
+    ) {
+      return {
+        foodName: foodQuery,
+        zone: "red",
+        verdictTitle: isBn ? "বর্জনীয় খাবার (Red Zone - Avoid)" : "Strictly Avoid (Red Zone)",
+        clinicalReason:
+          inRed?.reason ||
+          (isBn
+            ? `আপনার ${profile.medicalConditions || profile.dosha} প্রোফাইল ও ইনফ্ল্যামেটরি ইনডেক্স (${profile.inflammatoryIndex}/10) অনুযায়ী এটি রক্তে শর্করা ও প্রদাহ দ্রুত বাড়িয়ে দেয়।`
+            : `Triggers glycemic spikes and systemic inflammation for your ${profile.medicalConditions || profile.dosha} profile.`),
+        ayurvedicAndCohortNote: isPreg
+          ? isBn
+            ? "গর্ভাবস্থায় মাসানুমাসিক প্রোটোকলে অতিরিক্ত ভাজাপোড়া, রিফাইন্ড কার্ব, হার্বস বা কাঁচা পেঁপে/আনারস সম্পূর্ণ নিষিদ্ধ।"
+            : "Contraindicated during Masanumasika pregnancy protocol due to digestive and gestational risks."
+          : isBn
+          ? `এটি আপনার ${profile.dosha} দোষের ভারসাম্য নষ্ট করে এবং অন্ত্রে আম (Ama/Toxin) তৈরি করে।`
+          : `Aggravates ${profile.dosha} Dosha and impairs gut microbiome balance.`,
+        healthySwap: isBn
+          ? "ভেজানো কাঠবাদাম, রোস্টেড মাখানা, মুগ ডালের সুপ বা দেশি মাছ ও সবজি"
+          : "Soaked almonds, roasted makhana, moong dal soup, or river fish with greens",
+        bestTimingOrPortion: isBn
+          ? "সম্পূর্ণ বর্জন করুন; পরিবর্তে Green Zone বিকল্পটি গ্রহণ করুন।"
+          : "Avoid completely; replace with the suggested Green Zone swap.",
+      };
+    }
+
+    if (
+      inYellow ||
+      q.includes("সাদা ভাত") ||
+      q.includes("white rice") ||
+      q.includes("আম") ||
+      q.includes("mango") ||
+      q.includes("কলা") ||
+      q.includes("banana") ||
+      q.includes("কাঁঠাল") ||
+      q.includes("jackfruit") ||
+      q.includes("আলু") ||
+      q.includes("potato") ||
+      q.includes("চা") ||
+      q.includes("কফি") ||
+      q.includes("coffee") ||
+      q.includes("রুটি") ||
+      q.includes("দুধ")
+    ) {
+      return {
+        foodName: foodQuery,
+        zone: "yellow",
+        verdictTitle: isBn
+          ? "পরিমিত গ্রহণযোগ্য (Yellow Zone - Portion Controlled)"
+          : "Moderate / Portion Controlled (Yellow Zone)",
+        clinicalReason:
+          inYellow?.reason ||
+          (isBn
+            ? `${hasDiabetes ? "আপনার ব্লাড সুগার ও ইনসুলিন সংবেদনশীলতার কারণে " : ""}এটি পরিমিত পরিমাণে এবং প্রোটিন বা ফাইবারের সাথে মিলিয়ে খাওয়া প্রয়োজন।`
+            : `Requires strict portion control and pairing with fiber/protein to prevent glucose spikes.`),
+        ayurvedicAndCohortNote: isBn
+          ? `আপনার ${profile.dosha} প্রকৃতিতে এটি দুপুরে হজম অগ্নি (Agni) প্রবল থাকাকালীন অল্প পরিমাণে সহনীয়।`
+          : `Best digested at midday when digestive Agni is strongest for your ${profile.dosha} constitution.`,
+        healthySwap: isBn
+          ? "লাল চালের ভাত (১ কাপ), পেয়ারা/ডালিম বা লাউ-সবজি যুক্ত প্রোটিন মিল"
+          : "Red parboiled rice (1 cup), guava/pomegranate, or fiber-rich vegetable protein bowl",
+        bestTimingOrPortion: isBn
+          ? "সপ্তাহে ২-৩ দিন দুপুরের খাবারে (১ ছোট বাটি / ৫০-৭৫ গ্রাম), রাতে বর্জনীয়।"
+          : "Midday meal only (small portion 50–75g) paired with greens and protein; avoid at dinner.",
+      };
+    }
+
+    return {
+      foodName: foodQuery,
+      zone: "green",
+      verdictTitle: isBn
+        ? "নিরাপদ ও নিরাময়কারী (Green Zone - Ideal Match)"
+        : "Safe & Healing Match (Green Zone)",
+      clinicalReason:
+        inGreen?.reason ||
+        (isBn
+          ? `এটি আপনার ${profile.dosha} দোষ, মাইক্রোবায়োম স্কোর (${profile.microbiomeScore}/100) এবং মেটাবলিক লক্ষ্যমাত্রার জন্য অত্যন্ত উপকারী ও পুষ্টিসমৃদ্ধ।`
+          : `Supports your ${profile.dosha} balance, gut microbiome (${profile.microbiomeScore}/100), and cellular healing.`),
+      ayurvedicAndCohortNote: isPreg
+        ? isBn
+          ? `গর্ভাবস্থার ${profile.pregnancyMonth || 4}ম মাসের মাসানুমাসিক পুষ্টি ও ভ্রূণের বৃদ্ধিতে এটি নিরাপদ প্রাকৃতিক খাবার।`
+          : `Safe, nourishing whole food aligned with Month ${profile.pregnancyMonth || 4} Masanumasika protocol.`
+        : isBn
+        ? `হজম অগ্নি (Agni) সক্রিয় রাখে এবং আপনার ${profile.dosha} দোষের ভারসাম্য বজায় রাখে।`
+        : `Pacifies ${profile.dosha} Dosha and strengthens digestive Agni without glycemic stress.`,
+      healthySwap: isBn
+        ? "সরিষার তেল বা ১ চামচ দেশি ঘি ও হলুদ-জিরা দিয়ে হালকা রান্না করে গ্রহণ করুন"
+        : "Prepare lightly steamed or sautéed in cold-pressed mustard oil or 1 tsp A2 ghee",
+      bestTimingOrPortion: isBn
+        ? "প্রতিদিনের দুপুর বা রাতের খাবারে ১-১.৫ বাটি নিশ্চিন্তে খেতে পারেন।"
+        : "Enjoy 1–1.5 bowls daily during lunch or dinner.",
+    };
   }
 
   async generateCookingSession(
@@ -1639,12 +2162,13 @@ export class GeminiService {
       model: "gemini-3.8-flash",
       contents: { parts: [{ text: prompt }] },
     });
-    if (!text) {
-      return lang === "bn"
+    const draft =
+      text && text.trim()
+        ? text.trim()
+        : lang === "bn"
         ? `${ingredient}-এর পরিবর্তে লাউ, পেঁপে বা ফুলকপির রাইস ব্যবহার করতে পারেন।`
         : `You can substitute ${ingredient} with bottle gourd, green papaya, or cauliflower rice.`;
-    }
-    return text.trim();
+    return MakerCheckerEngine.verifyTextOutput(draft, profile, lang).verifiedText;
   }
 
   async analyzeGutSound(

@@ -1,4 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Home,
+  Flame,
+  BarChart3,
+  UserCircle2,
+  UtensilsCrossed,
+  ChefHat,
+  ClipboardCheck,
+  Soup,
+  Globe,
+  Sun,
+  Moon,
+  LogOut,
+  ChevronLeft,
+  Bot,
+} from 'lucide-react';
 import AssessmentStep from './components/AssessmentStep';
 import AnalysisReport from './components/AnalysisReport';
 import ProfileView from './components/ProfileView';
@@ -7,6 +23,7 @@ import FamilyPotView from './components/FamilyPotView';
 import ARPortionGuideView from './components/ARPortionGuideView';
 import CommunityHub from './components/CommunityHub';
 import MessagesView from './components/MessagesView';
+import IndividualizedChatbot from './components/IndividualizedChatbot';
 import SOSModal from './components/SOSModal';
 import DoctorDashboard from './components/DoctorDashboard';
 import HomeGrid from './components/HomeGrid';
@@ -20,6 +37,8 @@ import HealthCalculator from './components/HealthCalculator';
 import DinacharyaView from './components/DinacharyaView';
 import EcommerceView from './components/EcommerceView';
 import DietMakerHub, { DietMakerFeature } from './components/DietMakerHub';
+import CalorieTrackerView from './components/CalorieTrackerView';
+import WeeklyAnalyticsView from './components/WeeklyAnalyticsView';
 import {
   HealthProfile,
   Language,
@@ -28,6 +47,7 @@ import {
   Badge,
   DietPhaseChart,
   ProfileRoleType,
+  DailyCalorieLog,
 } from './types';
 import { translations } from './i18n';
 import { GeminiService } from './services/geminiService';
@@ -35,6 +55,8 @@ import { GeminiService } from './services/geminiService';
 type View =
   | 'home'
   | 'diet_maker'
+  | 'calorie_tracker'
+  | 'analytics'
   | 'profile'
   | 'diet'
   | 'checklist'
@@ -71,6 +93,146 @@ const INITIAL_BADGES: Badge[] = [
   { id: 'legend', name: 'Longevity Legend', icon: '👑', description: 'Complete Phase 4', unlocked: false },
 ];
 
+const buildInitialWeeklyLogs = (): DailyCalorieLog[] => {
+  const dayNamesBn = ['শনিবার', 'রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'আজ'];
+  const dayNamesEn = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Today'];
+  const today = new Date();
+
+  const presets = [
+    { cals: 1580, prot: 64, carbs: 152, fats: 52, water: 8 },
+    { cals: 1640, prot: 68, carbs: 160, fats: 54, water: 9 },
+    { cals: 1490, prot: 58, carbs: 145, fats: 49, water: 7 },
+    { cals: 1660, prot: 70, carbs: 158, fats: 55, water: 8 },
+    { cals: 1610, prot: 66, carbs: 155, fats: 53, water: 8 },
+    { cals: 1550, prot: 62, carbs: 148, fats: 51, water: 9 },
+  ];
+
+  const logs: DailyCalorieLog[] = presets.map((p, idx) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (6 - idx));
+    const dateStr = d.toISOString().split('T')[0];
+    return {
+      date: dateStr,
+      dayLabelBn: dayNamesBn[idx],
+      dayLabelEn: dayNamesEn[idx],
+      targetCalories: 1650,
+      targetProtein: 65,
+      targetCarbs: 165,
+      targetFats: 55,
+      waterGlasses: p.water,
+      items: [
+        {
+          id: `seed-${idx}-1`,
+          slot: 'morning',
+          nameBn: 'সিদ্ধ ডিম (২টি), লাল আটার রুটি ও সবজি',
+          nameEn: 'Boiled Eggs (2), Whole Wheat Roti & Greens',
+          portion: '১ প্লেট (২৫০ গ্রাম)',
+          grams: 250,
+          calories: Math.round(p.cals * 0.28),
+          protein: Math.round(p.prot * 0.3),
+          carbs: Math.round(p.carbs * 0.28),
+          fats: Math.round(p.fats * 0.3),
+          fiber: 6,
+          matchedChartMeal: true,
+          timestamp: '08:30 AM',
+        },
+        {
+          id: `seed-${idx}-2`,
+          slot: 'midDay',
+          nameBn: 'লাল চালের ভাত, দেশি মাছের ঝোল, ডাল ও শাক ভাজি',
+          nameEn: 'Red Rice, Bengali Fish Curry, Lentils & Greens',
+          portion: '১ মিল (৩৮০ গ্রাম)',
+          grams: 380,
+          calories: Math.round(p.cals * 0.38),
+          protein: Math.round(p.prot * 0.4),
+          carbs: Math.round(p.carbs * 0.42),
+          fats: Math.round(p.fats * 0.35),
+          fiber: 8,
+          matchedChartMeal: true,
+          timestamp: '01:30 PM',
+        },
+        {
+          id: `seed-${idx}-3`,
+          slot: 'afternoon',
+          nameBn: 'ভেজানো চিয়া সিড, কাঠবাদাম ও পেয়ারা',
+          nameEn: 'Soaked Chia Seeds, Almonds & Guava',
+          portion: '১ কাপ (১৫০ গ্রাম)',
+          grams: 150,
+          calories: Math.round(p.cals * 0.12),
+          protein: Math.round(p.prot * 0.1),
+          carbs: Math.round(p.carbs * 0.12),
+          fats: Math.round(p.fats * 0.15),
+          fiber: 5,
+          matchedChartMeal: true,
+          timestamp: '05:00 PM',
+        },
+        {
+          id: `seed-${idx}-4`,
+          slot: 'evening',
+          nameBn: 'গ্রিলড চিকেন/মাছ ও মিক্সড সবজি স্যুপ',
+          nameEn: 'Grilled Chicken/Fish & Mixed Vegetable Soup',
+          portion: '১ বড় বাটি (২৮০ গ্রাম)',
+          grams: 280,
+          calories: Math.round(p.cals * 0.22),
+          protein: Math.round(p.prot * 0.2),
+          carbs: Math.round(p.carbs * 0.18),
+          fats: Math.round(p.fats * 0.2),
+          fiber: 6,
+          matchedChartMeal: true,
+          timestamp: '08:00 PM',
+        },
+      ],
+    };
+  });
+
+  // Today's initial log (interactive)
+  const todayStr = today.toISOString().split('T')[0];
+  logs.push({
+    date: todayStr,
+    dayLabelBn: 'আজ',
+    dayLabelEn: 'Today',
+    targetCalories: 1650,
+    targetProtein: 65,
+    targetCarbs: 165,
+    targetFats: 55,
+    waterGlasses: 6,
+    items: [
+      {
+        id: 'today-1',
+        slot: 'morning',
+        nameBn: 'সিদ্ধ ডিম (২টি) ও মিক্সড সবজি ভাজি',
+        nameEn: 'Boiled Eggs (2 pcs) & Sautéed Mixed Greens',
+        portion: '২৫০ গ্রাম',
+        grams: 250,
+        calories: 265,
+        protein: 16.5,
+        carbs: 15,
+        fats: 15.5,
+        fiber: 5.2,
+        matchedChartMeal: true,
+        timestamp: '08:45 AM',
+      },
+      {
+        id: 'today-2',
+        slot: 'midDay',
+        nameBn: 'লাল চালের ভাত, দেশি মাছের ঝোল ও মুগ ডাল',
+        nameEn: 'Red Rice, Bengali Fish Curry & Moong Dal',
+        portion: '৩৮০ গ্রাম',
+        grams: 380,
+        calories: 490,
+        protein: 36,
+        carbs: 51,
+        fats: 15,
+        fiber: 7.4,
+        matchedChartMeal: true,
+        timestamp: '01:40 PM',
+      },
+    ],
+  });
+
+  return logs;
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<HealthProfile | null>(null);
@@ -86,6 +248,9 @@ const App: React.FC = () => {
   const [blockedFeature, setBlockedFeature] = useState<string>('');
   const [showReminder, setShowReminder] = useState(false);
   const [analysisStep, setAnalysisStep] = useState<'report' | 'traffic_light'>('report');
+
+  // Shared Daily Calorie Logs for CalorieTrackerView and WeeklyAnalyticsView
+  const [dailyCalorieLogs, setDailyCalorieLogs] = useState<DailyCalorieLog[]>(() => buildInitialWeeklyLogs());
 
   // Remembers which Diet Maker sub-feature user wanted before completing Profile + Assessment
   const [pendingDietMakerTarget, setPendingDietMakerTarget] = useState<DietMakerFeature | null>(null);
@@ -162,7 +327,6 @@ const App: React.FC = () => {
     setProfile(p);
     fetchChart(p, currentPhase);
 
-    // If user wanted Cookbook or Daily Checklist directly after unlocking, still let them review clinical report/Traffic Light or jump directly
     setAnalysisStep('report');
     setAppState('analysis');
     setCurrentView('diet');
@@ -212,13 +376,24 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateTodayCalorieLog = (updatedToday: DailyCalorieLog) => {
+    setDailyCalorieLogs((prev) => {
+      if (prev.length === 0) return [updatedToday];
+      const next = [...prev];
+      next[next.length - 1] = updatedToday;
+      return next;
+    });
+  };
+
   const handleNavigation = (view: View) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // 1. Public views accessible WITH OR WITHOUT a profile:
-    // Home, Diet Maker Hub, Leaderboard, Calculator, Food Glossary, Marketplace, Community, Messages
+    // 1. Public views accessible WITH OR WITHOUT a profile or Pro subscription:
+    // Home, Calorie Tracker, Weekly Analytics, Diet Maker Hub, Leaderboard, Calculator, Food Glossary, Marketplace, Community, Messages
     const publicViews: View[] = [
       'home',
+      'calorie_tracker',
+      'analytics',
       'diet_maker',
       'leaderboard',
       'calculator',
@@ -278,25 +453,31 @@ const App: React.FC = () => {
     }
   };
 
-  const NavItem = ({ view, label, icon }: { view: View; label: string; icon: React.ReactNode }) => {
-    const isActive =
-      currentView === view ||
-      (view === 'diet_maker' && ['diet', 'cookbook', 'checklist', 'family_pot'].includes(currentView));
+  const FooterDockItem = ({
+    view,
+    label,
+    icon: Icon,
+    activeGradient,
+  }: {
+    view: View;
+    label: string;
+    icon: React.ElementType;
+    activeGradient: string;
+  }) => {
+    const isActive = currentView === view;
     return (
       <button
         onClick={() => handleNavigation(view)}
-        className={`flex flex-col items-center gap-1 transition-all px-2.5 py-1.5 rounded-2xl ${
+        className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1.5 py-2.5 px-3 rounded-2xl transition-all ${
           isActive
-            ? darkMode
-              ? 'bg-emerald-500/15 text-emerald-400'
-              : 'bg-slate-900 text-white shadow-md'
+            ? `bg-gradient-to-r ${activeGradient} text-white shadow-lg scale-[1.02]`
             : darkMode
-            ? 'text-slate-400 hover:text-slate-200'
-            : 'text-slate-500 hover:text-slate-900'
+            ? 'text-slate-400 hover:text-white hover:bg-slate-800/70'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
         }`}
       >
-        <div className="relative">{icon}</div>
-        <span className="text-[10px] font-bold tracking-tight whitespace-nowrap">{label}</span>
+        <Icon className="w-5 h-5 shrink-0" strokeWidth={2.3} />
+        <span className="text-[11px] sm:text-xs font-extrabold tracking-tight whitespace-nowrap">{label}</span>
       </button>
     );
   };
@@ -316,7 +497,7 @@ const App: React.FC = () => {
             darkMode ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
           }`}
         >
-          <span>←</span>
+          <ChevronLeft className="w-4 h-4" />
           <span>{isBn ? 'ডায়েট মেকার হাব' : 'Diet Maker Hub'}</span>
         </button>
 
@@ -328,13 +509,13 @@ const App: React.FC = () => {
             }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
               currentView === 'diet'
-                ? 'bg-emerald-600 text-white shadow-md'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md'
                 : darkMode
                 ? 'text-slate-400 hover:bg-slate-800'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <span>🥗</span>
+            <UtensilsCrossed className="w-3.5 h-3.5" />
             <span>{isBn ? 'মেক ইউর ডায়েট চার্ট' : 'Make Diet Chart'}</span>
           </button>
 
@@ -345,13 +526,13 @@ const App: React.FC = () => {
             }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
               currentView === 'cookbook'
-                ? 'bg-orange-600 text-white shadow-md'
+                ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-md'
                 : darkMode
                 ? 'text-slate-400 hover:bg-slate-800'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <span>👨‍🍳</span>
+            <ChefHat className="w-3.5 h-3.5" />
             <span>{isBn ? 'কুকবুক' : 'Cookbook'}</span>
           </button>
 
@@ -362,13 +543,13 @@ const App: React.FC = () => {
             }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
               currentView === 'checklist'
-                ? 'bg-rose-600 text-white shadow-md'
+                ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-md'
                 : darkMode
                 ? 'text-slate-400 hover:bg-slate-800'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <span>📝</span>
+            <ClipboardCheck className="w-3.5 h-3.5" />
             <span>{isBn ? 'ডেইলি চেক লিস্ট' : 'Daily Checklist'}</span>
           </button>
 
@@ -379,13 +560,13 @@ const App: React.FC = () => {
             }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
               currentView === 'family_pot'
-                ? 'bg-purple-600 text-white shadow-md'
+                ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md'
                 : darkMode
                 ? 'text-slate-400 hover:bg-slate-800'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <span>🍲</span>
+            <Soup className="w-3.5 h-3.5" />
             <span>{isBn ? 'ফ্যামিলি পট' : 'Family Pot'}</span>
           </button>
         </div>
@@ -402,6 +583,36 @@ const App: React.FC = () => {
           darkMode={darkMode}
           user={user}
           profile={profile}
+        />
+      );
+    }
+
+    if (currentView === 'calorie_tracker') {
+      return (
+        <CalorieTrackerView
+          user={user}
+          profile={profile}
+          currentChart={currentChart}
+          lang={lang}
+          darkMode={darkMode}
+          dailyLogs={dailyCalorieLogs}
+          onUpdateTodayLog={handleUpdateTodayCalorieLog}
+          onNavigateToAnalytics={() => handleNavigation('analytics')}
+          onNavigateToDietMaker={() => handleNavigation('diet_maker')}
+        />
+      );
+    }
+
+    if (currentView === 'analytics') {
+      return (
+        <WeeklyAnalyticsView
+          user={user}
+          profile={profile}
+          currentChart={currentChart}
+          lang={lang}
+          darkMode={darkMode}
+          dailyLogs={dailyCalorieLogs}
+          onNavigateToTracker={() => handleNavigation('calorie_tracker')}
         />
       );
     }
@@ -494,27 +705,73 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'messages') {
-      const safeProfile = profile || {
-        dosha: 'Guest',
-        age: 0,
-        gender: 'N/A',
-        weight: 0,
-        height: 0,
-        microbiomeScore: 50,
-        inflammatoryIndex: 5,
-        metabolicType: 'Normal',
+      const safeProfile: HealthProfile = profile || {
+        dosha: 'Pitta-Kapha',
+        age: 32,
+        gender: 'Female',
+        weight: 64,
+        height: 162,
+        microbiomeScore: 74,
+        inflammatoryIndex: 4,
+        metabolicType: 'Moderate',
         alkalineBalance: 'Neutral',
-        psychologicalProfile: 'Neutral',
-        medications: '',
-        dietHistory: '',
+        psychologicalProfile: 'Balanced',
+        medications: 'None',
+        dietHistory: 'Mixed Bengali Diet',
+        medicalConditions: isBn ? 'সাধারণ মেটাবলিক ও গাট হেলথ' : 'General Metabolic & Gut Wellness',
+        cohortType: 'adult_metabolic',
+        mealFrequency: 3,
+        dinnerCarbRule: 'vegetable_carbs',
         answers: {},
         analysis: null,
       };
-      return <MessagesView profile={safeProfile} currentPhase={currentPhase} lang={lang} darkMode={darkMode} />;
+      const todayLog =
+        dailyCalorieLogs.length > 0 ? dailyCalorieLogs[dailyCalorieLogs.length - 1] : null;
+      return (
+        <MessagesView
+          profile={safeProfile}
+          currentPhase={currentPhase}
+          lang={lang}
+          darkMode={darkMode}
+          currentChart={currentChart}
+          todayLog={todayLog}
+          hasRealProfile={Boolean(profile)}
+          onStartAssessment={() => setCurrentView('assessment_gate')}
+        />
+      );
     }
 
     if (currentView === 'login') {
       return <LoginScreen onLogin={handleLogin} lang={lang} darkMode={darkMode} />;
+    }
+
+    if (currentView === 'family_pot') {
+      return (
+        <div className="animate-in fade-in duration-500">
+          {renderDietMakerSubNav()}
+          <FamilyPotView
+            profile={profile}
+            currentPhase={currentPhase}
+            lang={lang}
+            darkMode={darkMode}
+            user={user}
+            onSwitchToFamilyProfile={() => {
+              if (user && profile) {
+                setUser({
+                  ...user,
+                  profileType: 'family',
+                  isFamilyManager: true,
+                });
+              } else {
+                setPendingDietMakerTarget('family_pot');
+                setPreferredRole('family');
+                setCurrentView('assessment_gate');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+          />
+        </div>
+      );
     }
 
     if (!profile && !user?.id?.startsWith('DOC-')) {
@@ -572,6 +829,7 @@ const App: React.FC = () => {
               onNavigateToFamilyPot={() => handleNavigation('family_pot')}
               onNavigateToDashboard={() => setShowDoctorDashboard(true)}
               onUpdateUser={setUser}
+              onUpdateProfile={setProfile}
             />
           )}
 
@@ -640,9 +898,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {currentView === 'family_pot' && profile && (
-            <FamilyPotView profile={profile} currentPhase={currentPhase} lang={lang} darkMode={darkMode} />
-          )}
           {currentView === 'cookbook' && profile && (
             <VoiceCookbookView profile={profile} lang={lang} darkMode={darkMode} currentChart={currentChart} />
           )}
@@ -659,7 +914,7 @@ const App: React.FC = () => {
   return (
     <div
       className={`min-h-screen flex flex-col transition-colors duration-300 ${
-        darkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#fdfdfd] text-slate-900'
+        darkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#f8fafc] text-slate-900'
       }`}
     >
       {showPaywall && (
@@ -720,8 +975,8 @@ const App: React.FC = () => {
 
       {/* Top Navigation Bar */}
       <nav
-        className={`sticky top-0 z-50 border-b py-2.5 px-3 md:px-8 backdrop-blur-md transition-colors duration-300 ${
-          darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-100'
+        className={`sticky top-0 z-50 border-b py-2.5 px-3 md:px-8 backdrop-blur-xl transition-colors duration-300 ${
+          darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200/70 shadow-sm'
         }`}
       >
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-2 md:gap-4">
@@ -736,32 +991,16 @@ const App: React.FC = () => {
                 }`}
                 aria-label="Back"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
+                <ChevronLeft className="w-5 h-5" />
               </button>
             )}
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentView('home')}>
-              <div
-                className={`w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center font-bold text-base md:text-lg serif italic shadow-md ${
-                  darkMode ? 'bg-emerald-500 text-slate-950' : 'bg-slate-900 text-white'
-                }`}
-              >
+            <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => setCurrentView('home')}>
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 text-white flex items-center justify-center font-extrabold text-base shadow-md shadow-emerald-500/20">
                 {profile ? profile.dosha[0] : 'P'}
               </div>
               <span
-                className={`text-base md:text-lg font-bold tracking-tight serif italic ${
-                  darkMode ? 'text-white' : 'text-slate-800'
+                className={`text-base md:text-lg font-extrabold tracking-tight ${
+                  darkMode ? 'text-white' : 'text-slate-900'
                 }`}
               >
                 Precision Nutrition
@@ -769,75 +1008,11 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Desktop Horizontal Navigation Links */}
-          <div className="hidden lg:flex items-center gap-5 text-xs font-bold">
-            <button
-              onClick={() => handleNavigation('home')}
-              className={`py-1 border-b-2 transition-colors ${
-                currentView === 'home'
-                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                  : 'border-transparent opacity-70 hover:opacity-100'
-              }`}
-            >
-              {isBn ? 'হোম' : 'Home'}
-            </button>
-            <button
-              onClick={() => handleNavigation('diet_maker')}
-              className={`py-1 border-b-2 transition-colors ${
-                ['diet_maker', 'diet', 'cookbook', 'checklist', 'family_pot'].includes(currentView)
-                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                  : 'border-transparent opacity-70 hover:opacity-100'
-              }`}
-            >
-              🍱 {isBn ? 'ডায়েট মেকার' : 'Diet Maker'}
-            </button>
-            <button
-              onClick={() => handleNavigation('leaderboard')}
-              className={`py-1 border-b-2 transition-colors ${
-                currentView === 'leaderboard'
-                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                  : 'border-transparent opacity-70 hover:opacity-100'
-              }`}
-            >
-              🏆 {isBn ? 'লিডারবোর্ড' : 'Leaderboard'}
-            </button>
-            <button
-              onClick={() => handleNavigation('calculator')}
-              className={`py-1 border-b-2 transition-colors ${
-                currentView === 'calculator'
-                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                  : 'border-transparent opacity-70 hover:opacity-100'
-              }`}
-            >
-              {t.nav_calculator}
-            </button>
-            <button
-              onClick={() => handleNavigation('food_recognition')}
-              className={`py-1 border-b-2 transition-colors ${
-                currentView === 'food_recognition'
-                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                  : 'border-transparent opacity-70 hover:opacity-100'
-              }`}
-            >
-              {t.nav_food_rec}
-            </button>
-            <button
-              onClick={() => handleNavigation('profile')}
-              className={`py-1 border-b-2 transition-colors ${
-                currentView === 'profile'
-                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                  : 'border-transparent opacity-70 hover:opacity-100'
-              }`}
-            >
-              👤 {isBn ? 'প্রোফাইল' : 'Profile'}
-            </button>
-          </div>
-
           <div className="flex items-center gap-1.5 md:gap-3">
             {user && (
               <div className="hidden sm:flex flex-col items-end mr-1">
-                <span className="text-[9px] font-bold text-amber-500 tabular-nums">{user.points} Credits</span>
-                <span className="text-[10px] font-semibold opacity-70">
+                <span className="text-[10px] font-extrabold text-amber-500 tabular-nums">{user.points} Credits</span>
+                <span className="text-[10px] font-bold opacity-70">
                   {user.profileType === 'doctor' || user.id?.startsWith('DOC-')
                     ? isBn
                       ? 'ডাক্তার'
@@ -854,7 +1029,7 @@ const App: React.FC = () => {
             )}
             <button
               onClick={() => setShowSOS(true)}
-              className="bg-red-600 hover:bg-red-500 text-white px-2.5 md:px-4 py-1.5 rounded-xl font-bold text-[10px] md:text-xs transition-all active:scale-95 whitespace-nowrap"
+              className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white px-3 md:px-4 py-2 rounded-xl font-extrabold text-[10px] md:text-xs shadow-md shadow-red-600/20 transition-all active:scale-95 whitespace-nowrap"
             >
               {t.sos_button}
             </button>
@@ -865,10 +1040,10 @@ const App: React.FC = () => {
                   className={`p-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${
                     darkMode
                       ? 'bg-slate-800 border-slate-700 text-emerald-400'
-                      : 'bg-white border-slate-200 text-slate-900'
+                      : 'bg-white border-slate-200 text-slate-900 shadow-sm'
                   }`}
                 >
-                  <span className="text-sm">🌐</span>
+                  <Globe className="w-4 h-4 text-emerald-500" />
                   <span className="hidden sm:inline uppercase text-[10px]">{lang}</span>
                 </button>
                 {showLanguageMenu && (
@@ -904,47 +1079,11 @@ const App: React.FC = () => {
                 onClick={() => setDarkMode(!darkMode)}
                 className={`p-2 rounded-xl transition-all border ${
                   darkMode
-                    ? 'bg-slate-800 border-slate-700 text-yellow-400'
+                    ? 'bg-slate-800 border-slate-700 text-amber-400'
                     : 'bg-white border-slate-200 text-slate-600 shadow-sm'
                 }`}
               >
-                {darkMode ? (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="12" cy="12" r="5" />
-                    <line x1="12" y1="1" x2="12" y2="3" />
-                    <line x1="12" y1="21" x2="12" y2="23" />
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                    <line x1="1" y1="12" x2="3" y2="12" />
-                    <line x1="21" y1="12" x2="3" y2="12" />
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                  </svg>
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                  </svg>
-                )}
+                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
             </div>
             {user && (
@@ -956,14 +1095,14 @@ const App: React.FC = () => {
                   setCurrentView('home');
                   setShowDoctorDashboard(false);
                 }}
-                className={`p-2 md:px-3 md:py-1.5 text-xs font-bold rounded-xl transition-colors border ${
+                className={`p-2 md:px-3 md:py-2 text-xs font-bold rounded-xl transition-colors border flex items-center gap-1.5 ${
                   darkMode
                     ? 'text-red-400 hover:bg-red-950/30 border-red-900/50'
                     : 'text-red-600 hover:bg-red-50 border-red-100'
                 }`}
               >
+                <LogOut className="w-4 h-4" />
                 <span className="hidden md:inline">{isBn ? 'লগআউট' : 'Logout'}</span>
-                <span className="md:hidden">🚪</span>
               </button>
             )}
           </div>
@@ -971,95 +1110,86 @@ const App: React.FC = () => {
       </nav>
 
       {/* Main Content Container */}
-      <main className="flex-1 py-4 md:py-8 px-3 md:px-8 max-w-7xl mx-auto w-full pb-24 lg:pb-12">
+      <main className="flex-1 py-4 md:py-8 px-3 md:px-8 max-w-7xl mx-auto w-full pb-28">
         {renderContent()}
       </main>
 
-      {/* Mobile App Bottom Navigation Dock */}
+      {/* Global Floating Individualized Gemini AI Assistant on all screens except full messages view and login */}
+      {currentView !== 'messages' && currentView !== 'login' && (
+        <IndividualizedChatbot
+          profile={
+            profile || {
+              dosha: 'Pitta-Kapha',
+              age: 32,
+              gender: 'Female',
+              weight: 64,
+              height: 162,
+              microbiomeScore: 74,
+              inflammatoryIndex: 4,
+              metabolicType: 'Moderate',
+              alkalineBalance: 'Neutral',
+              psychologicalProfile: 'Balanced',
+              medications: 'None',
+              dietHistory: 'Mixed Bengali Diet',
+              medicalConditions: isBn ? 'সাধারণ মেটাবলিক ও গাট হেলথ' : 'General Metabolic & Gut Wellness',
+              cohortType: 'adult_metabolic',
+              mealFrequency: 3,
+              dinnerCarbRule: 'vegetable_carbs',
+              answers: {},
+              analysis: null,
+            }
+          }
+          currentPhase={currentPhase}
+          lang={lang}
+          darkMode={darkMode}
+          currentChart={currentChart}
+          todayLog={
+            dailyCalorieLogs.length > 0 ? dailyCalorieLogs[dailyCalorieLogs.length - 1] : null
+          }
+          hasRealProfile={Boolean(profile)}
+          mode="floating"
+          onOpenFullView={() => handleNavigation('messages')}
+          onStartAssessment={() => setCurrentView('assessment_gate')}
+        />
+      )}
+
+      {/* Redesigned Figma-Style Footer Dock (Diet Maker, Leaderboard, Calculator removed; Daily Calorie Tracker & Analytics added) */}
       {currentView !== 'login' && (
         <div
-          className={`lg:hidden fixed bottom-0 inset-x-0 z-[60] border-t backdrop-blur-xl py-2 px-3 transition-colors duration-300 ${
-            darkMode ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
+          className={`fixed bottom-0 inset-x-0 z-[60] border-t backdrop-blur-2xl py-2 px-3 transition-colors duration-300 ${
+            darkMode
+              ? 'bg-slate-900/95 border-slate-800 shadow-2xl'
+              : 'bg-white/95 border-slate-200/80 shadow-[0_-10px_30px_rgba(15,23,42,0.06)]'
           }`}
         >
-          <div className="max-w-md mx-auto flex justify-between items-center gap-1">
-            <NavItem
+          <div className="max-w-2xl mx-auto flex justify-between items-center gap-2">
+            <FooterDockItem
               view="home"
               label={isBn ? 'হোম' : 'Home'}
-              icon={
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                </svg>
-              }
+              icon={Home}
+              activeGradient="from-emerald-500 to-teal-600"
             />
-            <NavItem
-              view="diet_maker"
-              label={isBn ? 'ডায়েট মেকার' : 'Diet Maker'}
-              icon={<span className="text-base leading-none">🍱</span>}
+            <FooterDockItem
+              view="calorie_tracker"
+              label={isBn ? 'ডেইলি ক্যালোরি ট্র্যাকার' : 'Calorie Tracker'}
+              icon={Flame}
+              activeGradient="from-orange-500 to-rose-600"
             />
-            <NavItem
-              view="leaderboard"
-              label={isBn ? 'লিডারবোর্ড' : 'Leaders'}
-              icon={<span className="text-base leading-none">🏆</span>}
+            <FooterDockItem
+              view="analytics"
+              label={isBn ? 'অ্যানালিটিক্স' : 'Analytics'}
+              icon={BarChart3}
+              activeGradient="from-indigo-500 to-purple-600"
             />
-            <NavItem
-              view="calculator"
-              label={isBn ? 'ক্যালকুলেটর' : 'Calc'}
-              icon={<span className="text-base leading-none">🧮</span>}
-            />
-            <NavItem
+            <FooterDockItem
               view="profile"
               label={isBn ? 'প্রোফাইল' : t.nav_profile}
-              icon={
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              }
+              icon={UserCircle2}
+              activeGradient="from-blue-500 to-cyan-600"
             />
           </div>
         </div>
       )}
-
-      {/* Desktop Footer */}
-      <footer
-        className={`hidden md:block py-10 transition-colors duration-300 ${
-          darkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-900 text-slate-500'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-8 grid grid-cols-1 md:grid-cols-2 gap-8 text-xs">
-          <div className="space-y-2">
-            <h4 className="text-white font-bold text-base serif italic">Precision Nutrition Science</h4>
-            <p className="leading-relaxed">Clinical-grade biological mapping for sustainable health.</p>
-          </div>
-          <div className="space-y-2">
-            <h4 className="text-white font-bold text-base">Legal</h4>
-            <p className="leading-relaxed italic">
-              Consult a medical professional. This clinical nutrition tool supports personalized dietary planning.
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };

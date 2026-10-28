@@ -5,6 +5,14 @@ import { WeatherService } from '../services/weatherService';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { translations } from '../i18n';
 import SmartBazaar from './SmartBazaar';
+import { AlertTriangle, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
+import PregnancyMilestonesDashboard from './PregnancyMilestonesDashboard';
+import ChildDevelopmentMilestones from './ChildDevelopmentMilestones';
+import {
+  getUserGeminiAccount,
+  subscribeUserGeminiAccount,
+  MakerCheckerEngine,
+} from '../services/aiModeService';
 
 interface Props {
   profile: HealthProfile;
@@ -163,9 +171,25 @@ const DietView: React.FC<Props> = ({
   const [currentWeek, setCurrentWeek] = useState(1);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<DietSubTab>('meals');
+  const [geminiAccount, setGeminiAccount] = useState(getUserGeminiAccount);
+  const [showVerificationDetails, setShowVerificationDetails] = useState(false);
 
   const gemini = new GeminiService();
   const weatherService = new WeatherService();
+
+  useEffect(() => {
+    return subscribeUserGeminiAccount((cfg) => {
+      setGeminiAccount(cfg);
+      setChart((prev) =>
+        prev
+          ? {
+              ...prev,
+              verification: MakerCheckerEngine.buildVerificationStamp(profile),
+            }
+          : prev
+      );
+    });
+  }, [profile]);
 
   const SUB_TABS: { id: DietSubTab; labelBn: string; labelEn: string }[] = [
     { id: 'meals', labelBn: '🥗 ডায়েট চার্ট', labelEn: '🥗 Diet Chart' },
@@ -559,14 +583,92 @@ const DietView: React.FC<Props> = ({
       {loading ? (
         <div className="flex flex-col items-center justify-center py-28 gap-4">
           <div className="w-14 h-14 border-4 border-slate-800 border-t-emerald-500 rounded-full animate-spin" />
-          <p className="font-bold italic animate-pulse opacity-60 text-sm text-center px-4">
+          <p className="font-bold italic animate-pulse opacity-80 text-sm text-center px-4">
             {isBn
-              ? 'আপনার নির্বাচিত ট্রাফিক লাইট খাবার ও ক্যালোরি অনুযায়ী বাঙালি ডায়েট চার্ট তৈরি হচ্ছে...'
-              : t.calc_supps}
+              ? 'ধাপ ১ (Maker): ডায়েট চার্ট তৈরি হচ্ছে → ধাপ ২ (Checker): অ্যাপের জেমিনি দ্বারা ক্লিনিক্যাল ভেরিফিকেশন সম্পন্ন হচ্ছে...'
+              : 'Stage 1 (Maker): Drafting Diet Chart → Stage 2 (Checker): App Gemini Clinical Verification in progress...'}
           </p>
         </div>
       ) : chart ? (
-        <div className="space-y-5">
+        <div className="space-y-6">
+          {/* Pregnancy Milestones Dashboard (Strictly visible ONLY for pregnancy_lactation cohort) */}
+          {profile.cohortType === 'pregnancy_lactation' && (
+            <PregnancyMilestonesDashboard
+              currentPregnancyMonth={profile.pregnancyMonth || 1}
+              lang={lang}
+              darkMode={darkMode}
+              onSyncPregnancyMonth={(newMonth) => {
+                const updated: HealthProfile = { ...profile, pregnancyMonth: newMonth };
+                onUpdateProfile(updated);
+                fetchChart(updated, undefined, currentWeek);
+              }}
+            />
+          )}
+
+          {/* Child Development Milestones & Catch-Up Suggestion Engine (Strictly visible ONLY for child_pediatric cohort) */}
+          {profile.cohortType === 'child_pediatric' && (
+            <ChildDevelopmentMilestones
+              childAgeGroup={profile.childAgeGroup || '1-3'}
+              childAgeYears={profile.age}
+              childWeightKg={profile.weight}
+              childHeightCm={profile.height}
+              lang={lang}
+              darkMode={darkMode}
+              onSyncAgeGroup={(newBracket) => {
+                const updated: HealthProfile = { ...profile, childAgeGroup: newBracket };
+                onUpdateProfile(updated);
+              }}
+            />
+          )}
+
+          {/* Clinical Safety Alerts Banner (Strict Zero Herbs, Papaya, BP, Neutropenia) */}
+          {profile.cohortSafetyAlerts && profile.cohortSafetyAlerts.length > 0 && (
+            <div className="space-y-3">
+              {profile.cohortSafetyAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`p-4 md:p-5 rounded-3xl border shadow-sm flex items-start gap-3.5 transition-all ${
+                    alert.severity === 'critical'
+                      ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-950 dark:text-rose-200'
+                      : alert.severity === 'warning'
+                      ? 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-200'
+                      : 'bg-blue-50/90 dark:bg-blue-950/40 border-blue-300 dark:border-blue-800 text-blue-950 dark:text-blue-200'
+                  }`}
+                >
+                  <div
+                    className={`p-2.5 rounded-2xl shrink-0 ${
+                      alert.severity === 'critical'
+                        ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                        : 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
+                    }`}
+                  >
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-xs sm:text-sm font-extrabold tracking-tight">
+                      {isBn ? alert.titleBn : alert.titleEn}
+                    </h4>
+                    <p className="text-xs mt-1 leading-relaxed opacity-90">
+                      {isBn ? alert.descriptionBn : alert.descriptionEn}
+                    </p>
+                    {alert.prohibitedFoods && alert.prohibitedFoods.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        {alert.prohibitedFoods.map((f, i) => (
+                          <span
+                            key={i}
+                            className="px-2.5 py-1 rounded-xl bg-white/80 dark:bg-slate-800/80 text-[11px] font-bold border border-current opacity-85 shadow-xs"
+                          >
+                            ✕ {f}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Compact Phase Header & Section Tab Navigation Bar */}
           <div
             className={`p-4 md:p-6 rounded-3xl border ${
@@ -595,6 +697,69 @@ const DietView: React.FC<Props> = ({
                 >
                   {chart.phaseName}
                 </h2>
+                {(() => {
+                  const verification =
+                    chart.verification || MakerCheckerEngine.buildVerificationStamp(profile);
+                  return (
+                    <div className="mt-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[11px] font-extrabold">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          {isBn
+                            ? 'মেকার-চেকার কমপ্লিট: অ্যাপের জেমিনি দ্বারা ভেরিফাইড'
+                            : 'Maker-Checker Complete: Verified by App Gemini'}
+                        </span>
+                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                          {geminiAccount.enabled
+                            ? isBn
+                              ? '• উৎস: আপনার Gemini অ্যাকাউন্ট'
+                              : '• Source: Your Personal Gemini Account'
+                            : isBn
+                            ? '• উৎস: অ্যাপ প্রোফাইল ও ক্লিনিক্যাল চেকার'
+                            : '• Source: App Profile & Clinical Checker'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowVerificationDetails((v) => !v)}
+                          className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 underline hover:opacity-80"
+                        >
+                          {showVerificationDetails
+                            ? isBn
+                              ? 'চেকার রিপোর্ট লুকান'
+                              : 'Hide Checker Report'
+                            : isBn
+                            ? 'চেকার রিপোর্ট দেখুন'
+                            : 'View Checker Report'}
+                        </button>
+                      </div>
+                      {showVerificationDetails && (
+                        <div
+                          className={`mt-2 p-3 rounded-2xl border text-[11px] space-y-1 ${
+                            darkMode
+                              ? 'bg-slate-800/70 border-slate-700 text-slate-300'
+                              : 'bg-emerald-50/60 border-emerald-200/70 text-slate-700'
+                          }`}
+                        >
+                          <div className="font-extrabold text-emerald-700 dark:text-emerald-400">
+                            {isBn
+                              ? `${verification.makerLabelBn} ➔ ${verification.checkerLabelBn}`
+                              : `${verification.makerLabelEn} ➔ ${verification.checkerLabelEn}`}
+                          </div>
+                          <ul className="space-y-0.5 pt-1">
+                            {(isBn ? verification.checksPassedBn : verification.checksPassedEn).map(
+                              (chk, idx) => (
+                                <li key={idx} className="flex items-start gap-1.5">
+                                  <span className="text-emerald-500 font-bold">✓</span>
+                                  <span>{chk}</span>
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {chart.calorieSplitSummary && (

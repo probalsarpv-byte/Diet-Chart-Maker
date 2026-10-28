@@ -1,115 +1,188 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { HealthProfile, Language, Phase, ChatMessage, JournalEntry } from '../types';
+import React, { useState } from 'react';
+import {
+  HealthProfile,
+  Phase,
+  Language,
+  DietPhaseChart,
+  DailyCalorieLog,
+} from '../types';
 import { translations } from '../i18n';
-import { GeminiService } from '../services/geminiService';
+import IndividualizedChatbot from './IndividualizedChatbot';
+import { Bot, BookOpen, Calendar, Sparkles } from 'lucide-react';
 
-interface Props {
+interface MessagesViewProps {
   profile: HealthProfile;
   currentPhase: Phase;
   lang: Language;
   darkMode?: boolean;
+  currentChart?: DietPhaseChart | null;
+  todayLog?: DailyCalorieLog | null;
+  hasRealProfile?: boolean;
+  onStartAssessment?: () => void;
 }
 
-const MessagesView: React.FC<Props> = ({ profile, currentPhase, lang, darkMode }) => {
+const MessagesView: React.FC<MessagesViewProps> = ({
+  profile,
+  currentPhase,
+  lang,
+  darkMode = false,
+  currentChart = null,
+  todayLog = null,
+  hasRealProfile = true,
+  onStartAssessment,
+}) => {
   const t = translations[lang];
-  const [tab, setTab] = useState<'coach' | 'journal'>('coach');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [journal, setJournal] = useState<JournalEntry[]>([]);
-  const [journalInput, setJournalInput] = useState('');
+  const isBn = lang === 'bn';
+  const [activeTab, setActiveTab] = useState<'coach' | 'journal'>('coach');
+  const [journalEntries, setJournalEntries] = useState<{ date: string; text: string }[]>([
+    {
+      date: new Date().toLocaleDateString(),
+      text: isBn
+        ? 'সকালের ডিটক্স ওয়াটার ও প্রোটিন নাস্তার পর শরীর বেশ হালকা ও চনমনে লাগছে।'
+        : 'Started my metabolic detox phase today. Feeling energized and light after the morning routine.',
+    },
+  ]);
+  const [newEntry, setNewEntry] = useState('');
 
-  const coachRef = useRef<HTMLDivElement>(null);
-  const journalRef = useRef<HTMLDivElement>(null);
-  const gemini = new GeminiService();
-
-  useEffect(() => {
-    if (tab === 'coach' && coachRef.current) coachRef.current.scrollTop = coachRef.current.scrollHeight;
-    if (tab === 'journal' && journalRef.current) journalRef.current.scrollTop = journalRef.current.scrollHeight;
-  }, [messages, journal, isTyping, tab]);
-
-  const sendCoach = async () => {
-    if (!input.trim()) return;
-    const userMsg: ChatMessage = { role: 'user', text: input, timestamp: new Date() };
-    const newMsgs = [...messages, userMsg];
-    setMessages(newMsgs);
-    setInput('');
-    setIsTyping(true);
-    try {
-      const response = await gemini.coachChat(profile, currentPhase, newMsgs, lang);
-      setMessages([...newMsgs, { role: 'model', text: response, timestamp: new Date() }]);
-    } catch (e) { console.error(e); }
-    finally { setIsTyping(false); }
-  };
-
-  const addJournal = () => {
-    if (!journalInput.trim()) return;
-    setJournal([...journal, { id: Date.now().toString(), text: journalInput, timestamp: new Date() }]);
-    setJournalInput('');
+  const handleSaveEntry = () => {
+    if (!newEntry.trim()) return;
+    setJournalEntries([
+      { date: new Date().toLocaleDateString(), text: newEntry },
+      ...journalEntries,
+    ]);
+    setNewEntry('');
   };
 
   return (
-    <div className="max-w-4xl mx-auto h-[75vh] flex flex-col rounded-[40px] border shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom duration-500 transition-colors bg-white dark:bg-slate-900 dark:border-slate-800 border-slate-100">
-      <div className="flex border-b transition-colors dark:border-slate-800 border-slate-100">
-        <button onClick={() => setTab('coach')} className={`flex-1 py-6 text-sm font-black uppercase tracking-widest transition-all ${tab === 'coach' ? (darkMode ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-900 text-white') : 'text-slate-400 hover:text-slate-600'}`}>
-          {t.ai_coach}
-        </button>
-        <button onClick={() => setTab('journal')} className={`flex-1 py-6 text-sm font-black uppercase tracking-widest transition-all ${tab === 'journal' ? (darkMode ? 'bg-purple-500/10 text-purple-400' : 'bg-slate-900 text-white') : 'text-slate-400 hover:text-slate-600'}`}>
-          {t.journal}
-        </button>
+    <div className="max-w-5xl mx-auto space-y-6 pb-24">
+      {/* Top Section Header & Tab Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-extrabold mb-1.5">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>
+              {isBn
+                ? 'Gemini 3.8 Flash (ফ্রি ও ব্যক্তিগতকৃত)'
+                : 'Gemini 3.8 Flash (Free & Individualized)'}
+            </span>
+          </div>
+          <h2
+            className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
+              darkMode ? 'text-white' : 'text-slate-900'
+            }`}
+          >
+            {isBn ? 'AI নিউট্রিশন কোচ ও হেলথ জার্নাল' : 'AI Nutrition Coach & Health Journal'}
+          </h2>
+        </div>
+
+        <div
+          className={`inline-flex p-1.5 rounded-2xl border self-start ${
+            darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+          }`}
+        >
+          <button
+            onClick={() => setActiveTab('coach')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm transition-all ${
+              activeTab === 'coach'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : darkMode
+                ? 'text-slate-400 hover:text-white'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Bot className="w-4 h-4" />
+            <span>{isBn ? 'AI চ্যাটবট ও ফুড চেকার' : t.messages_ai_coach}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('journal')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm transition-all ${
+              activeTab === 'journal'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : darkMode
+                ? 'text-slate-400 hover:text-white'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>{isBn ? 'দৈনিক হেলথ জার্নাল' : t.messages_journal}</span>
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
-        {tab === 'coach' ? (
-          <div ref={coachRef} className="space-y-6 h-full flex flex-col">
-            <div className="flex-1 space-y-6">
-              {messages.length === 0 && (
-                <div className={`p-8 rounded-[32px] border italic text-center text-sm ${darkMode ? 'bg-blue-950/20 border-blue-900/30 text-blue-300' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
-                  {t.coach_welcome.replace('{phase}', currentPhase.toString()).replace('{dosha}', profile.dosha)}
-                </div>
-              )}
-              {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] p-5 rounded-[24px] text-sm shadow-sm leading-relaxed ${m.role === 'user' ? (darkMode ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white') : (darkMode ? 'bg-slate-800 text-slate-200' : 'bg-slate-50 text-slate-800')}`}>
-                    {m.text}
-                  </div>
-                </div>
-              ))}
-              {isTyping && <div className="animate-pulse flex gap-2 p-4"><div className="w-2 h-2 rounded-full bg-blue-500"/><div className="w-2 h-2 rounded-full bg-blue-500 delay-75"/><div className="w-2 h-2 rounded-full bg-blue-500 delay-150"/></div>}
-            </div>
-            <div className="flex gap-2 pt-4">
-              <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && sendCoach()} placeholder={t.type_message} className={`flex-1 p-5 rounded-2xl text-sm border focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100'}`} />
-              <button onClick={sendCoach} disabled={!input.trim() || isTyping} className="bg-blue-600 text-white px-8 rounded-2xl font-bold transition-all disabled:opacity-50 shadow-xl shadow-blue-500/20">{t.send}</button>
-            </div>
+      {activeTab === 'coach' ? (
+        <IndividualizedChatbot
+          profile={profile}
+          currentPhase={currentPhase}
+          lang={lang}
+          darkMode={darkMode}
+          currentChart={currentChart}
+          todayLog={todayLog}
+          hasRealProfile={hasRealProfile}
+          mode="embedded"
+          onStartAssessment={onStartAssessment}
+        />
+      ) : (
+        <div
+          className={`${
+            darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+          } p-6 sm:p-8 rounded-3xl shadow-sm border space-y-6`}
+        >
+          <div>
+            <h3
+              className={`text-xl font-extrabold ${
+                darkMode ? 'text-white' : 'text-slate-900'
+              }`}
+            >
+              {isBn ? 'আপনার দৈনিক শারীরিক অনুভূতি ও নোট' : t.messages_journal}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              {isBn
+                ? 'প্রতিদিনের খাবার পর আপনার হজম, ঘুম ও এনার্জি লেভেল এখানে লিখে রাখুন।'
+                : 'Record your daily digestion, sleep quality, and post-meal energy levels.'}
+            </p>
           </div>
-        ) : (
-          <div ref={journalRef} className="space-y-6 h-full flex flex-col">
-            <div className="flex-1 space-y-6">
-              {journal.length === 0 && (
-                <div className={`p-12 rounded-[32px] border text-center flex flex-col items-center gap-4 ${darkMode ? 'bg-purple-950/20 border-purple-900/30 text-purple-400' : 'bg-purple-50 border-purple-100 text-purple-700'}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                  <p className="text-sm font-bold leading-relaxed">{t.no_notes}</p>
+
+          <textarea
+            value={newEntry}
+            onChange={(e) => setNewEntry(e.target.value)}
+            className={`w-full h-36 p-4 rounded-2xl border text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+              darkMode
+                ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-400'
+                : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+            }`}
+            placeholder={
+              isBn
+                ? 'আজ আপনার শরীর কেমন লাগছে? কোনো খাবারের পর গ্যাস বা ক্লান্তি অনুভব করেছেন কি?'
+                : t.messages_journal_placeholder
+            }
+          />
+          <button
+            onClick={handleSaveEntry}
+            className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-extrabold text-sm hover:bg-emerald-700 transition-all shadow-sm"
+          >
+            {isBn ? 'জার্নাল সংরক্ষণ করুন' : t.messages_save_entry}
+          </button>
+
+          <div className="space-y-3 pt-4">
+            {journalEntries.map((entry, i) => (
+              <div
+                key={i}
+                className={`p-4 rounded-2xl border ${
+                  darkMode
+                    ? 'bg-slate-800/60 border-slate-700 text-slate-200'
+                    : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-1.5">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{entry.date}</span>
                 </div>
-              )}
-              {journal.map((e) => (
-                <div key={e.id} className="flex justify-end">
-                  <div className="flex flex-col items-end gap-1 max-w-[90%]">
-                    <div className={`p-5 rounded-[24px] text-sm leading-relaxed border ${darkMode ? 'bg-purple-900/40 border-purple-800 text-slate-100' : 'bg-white border-purple-100 text-slate-800 shadow-sm'}`}>
-                      {e.text}
-                    </div>
-                    <span className="text-[9px] font-black uppercase opacity-40 px-2">{e.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2 pt-4">
-              <input type="text" value={journalInput} onChange={e => setJournalInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && addJournal()} placeholder={t.journal_placeholder} className={`flex-1 p-5 rounded-2xl text-sm border focus:ring-2 focus:ring-purple-500 outline-none transition-colors ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100'}`} />
-              <button onClick={addJournal} disabled={!journalInput.trim()} className="bg-purple-600 text-white px-8 rounded-2xl font-bold transition-all disabled:opacity-50 shadow-xl shadow-purple-500/20">{t.message_yourself}</button>
-            </div>
+                <p className="text-sm font-medium leading-relaxed">{entry.text}</p>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
