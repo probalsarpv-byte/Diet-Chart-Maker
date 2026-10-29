@@ -1,7 +1,11 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Language, HealthProfile, Product, CartItem } from '../types';
 import { translations } from '../i18n';
+import {
+  loadPlatformState,
+  subscribePlatformState,
+  registerMarketplaceStore,
+} from '../services/platformHubService';
 
 interface Props {
   user: User | null;
@@ -57,7 +61,13 @@ const getInitialProducts = (lang: Language): Product[] => {
 
 const EcommerceView: React.FC<Props> = ({ user, profile, lang, darkMode, onUpdateUser }) => {
   const t = translations[lang];
-  
+  const isBn = lang === 'bn';
+  const [hubState, setHubState] = useState(() => loadPlatformState());
+
+  useEffect(() => {
+    return subscribePlatformState((st) => setHubState(st));
+  }, []);
+
   // Strict Role Selection: Only Businessman or Consumer
   const [marketRole, setMarketRole] = useState<'businessman' | 'consumer' | null>(() => {
     if (user?.isSeller) return 'businessman';
@@ -72,6 +82,19 @@ const EcommerceView: React.FC<Props> = ({ user, profile, lang, darkMode, onUpdat
   const [showCheckoutForm, setShowCheckoutForm] = useState(false);
   const [checkoutData, setCheckoutData] = useState({ name: '', address: '', phone: '', email: '' });
   const [orderComplete, setOrderComplete] = useState(false);
+  const [storeNotice, setStoreNotice] = useState<string | null>(null);
+
+  // Store Registration Form State
+  const [storeForm, setStoreForm] = useState({
+    storeName: '',
+    ownerName: user?.name || '',
+    ownerPhone: '',
+    ownerEmail: user?.email || '',
+    licenseNumber: '',
+    location: 'ঢাকা, বাংলাদেশ',
+    categoryFocus: 'Oils & Organic Grains',
+    description: '',
+  });
 
   // Add Product State (Seller Only)
   const [isAddingProduct, setIsAddingProduct] = useState(false);
@@ -81,6 +104,13 @@ const EcommerceView: React.FC<Props> = ({ user, profile, lang, darkMode, onUpdat
     category: 'Oils',
     description: ''
   });
+
+  const myStoreApplication = hubState.stores.find(
+    (s) =>
+      (user?.id && s.ownerUserId === user.id) ||
+      (storeForm.ownerEmail && s.ownerEmail.toLowerCase() === storeForm.ownerEmail.toLowerCase())
+  );
+  const isMyStoreApproved = Boolean(user?.isSeller || myStoreApplication?.status === 'approved');
 
   const addToCart = (product: Product) => {
     setCart(prev => {
@@ -99,28 +129,34 @@ const EcommerceView: React.FC<Props> = ({ user, profile, lang, darkMode, onUpdat
   const cartTotal = cart.reduce((acc, curr) => acc + (curr.product.price * curr.quantity), 0);
 
   const handleSellerRegister = () => {
+    if (!storeForm.storeName.trim() || !storeForm.licenseNumber.trim() || !storeForm.ownerEmail.trim()) {
+      setStoreNotice(
+        isBn
+          ? 'অনুগ্রহ করে দোকানের নাম, ট্রেড লাইসেন্স নম্বর এবং ইমেইল পূরণ করুন।'
+          : 'Please fill in Store Name, License Number, and Email.'
+      );
+      return;
+    }
     setIsRegisteringSeller(true);
-    setTimeout(() => {
-        // Since we are in the Marketplace view, we update the app's user state to reflect seller status
-        if (user) {
-          onUpdateUser({ ...user, isSeller: true });
-        } else {
-            // If they weren't logged in as a normal user, we simulate a seller login
-            const mockSeller: User = {
-                id: `SELLER-${Math.floor(1000 + Math.random() * 9000)}`,
-                name: "Business User",
-                email: "business@email.com",
-                isPro: true,
-                isSeller: true,
-                trialStartDate: new Date().toISOString(),
-                points: 0,
-                badges: []
-            };
-            onUpdateUser(mockSeller);
-        }
-        setIsRegisteringSeller(false);
-        setActiveTab('seller');
-    }, 1500);
+    registerMarketplaceStore({
+      ownerUserId: user?.id || `SELLER-${Math.floor(1000 + Math.random() * 9000)}`,
+      ownerName: storeForm.ownerName.trim() || user?.name || 'Store Owner',
+      ownerEmail: storeForm.ownerEmail.trim(),
+      ownerPhone: storeForm.ownerPhone.trim() || '01700-000000',
+      storeName: storeForm.storeName.trim(),
+      licenseNumber: storeForm.licenseNumber.trim(),
+      location: storeForm.location.trim(),
+      categoryFocus: storeForm.categoryFocus,
+      description:
+        storeForm.description.trim() ||
+        (isBn ? 'ক্লিনিক্যালি পরীক্ষিত অর্গানিক ফুড স্টোর।' : 'Clinically verified organic food store.'),
+    });
+    setIsRegisteringSeller(false);
+    setStoreNotice(
+      isBn
+        ? '✅ আপনার দোকান রেজিস্ট্রেশন আবেদনটি অ্যাডমিন প্যানেলে পাঠানো হয়েছে! অ্যাডমিন যাচাই করে অ্যাপ্রুভ করলেই আপনার স্টোর চালু হবে।'
+        : '✅ Your store registration has been sent to the Admin Panel! Once approved by Admin, your store will go live.'
+    );
   };
 
   const handleAddProduct = () => {
@@ -129,7 +165,7 @@ const EcommerceView: React.FC<Props> = ({ user, profile, lang, darkMode, onUpdat
     const newProd: Product = {
       id: `p-${Date.now()}`,
       name: newProductForm.name,
-      sellerName: user?.name || "My Institution",
+      sellerName: myStoreApplication?.storeName || user?.name || "My Institution",
       price: parseFloat(newProductForm.price),
       image: newProductForm.category === 'Oils' ? '🫗' : newProductForm.category === 'Grains' ? '🌾' : newProductForm.category === 'Tea' ? '🍵' : '📦',
       category: newProductForm.category as any,
@@ -142,7 +178,7 @@ const EcommerceView: React.FC<Props> = ({ user, profile, lang, darkMode, onUpdat
     setProducts([newProd, ...products]);
     setIsAddingProduct(false);
     setNewProductForm({ name: '', price: '', category: 'Oils', description: '' });
-    alert(t.product_added);
+    setStoreNotice(isBn ? '✅ পণ্যটি সফলভাবে মার্কেটপ্লেসে যুক্ত হয়েছে!' : t.product_added);
   };
 
   const handlePlaceOrder = () => {
@@ -218,17 +254,60 @@ const EcommerceView: React.FC<Props> = ({ user, profile, lang, darkMode, onUpdat
               Cart ({cart.length})
               {cart.length > 0 && <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900">!</span>}
             </button>
-            {marketRole === 'businessman' && (
-               <button onClick={() => setActiveTab('seller')} className={`px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'seller' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                 {user?.isSeller ? 'Dashboard' : 'Register'}
-               </button>
-            )}
+            <button onClick={() => setActiveTab('seller')} className={`px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'seller' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              {isMyStoreApproved ? (isBn ? 'আমার দোকান ড্যাশবোর্ড' : 'Store Dashboard') : (isBn ? '🏪 দোকান চালু করুন (রেজিস্ট্রেশন)' : '🏪 Open Your Store')}
+            </button>
         </div>
       </div>
+
+      {storeNotice && (
+        <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center justify-between">
+          <span>{storeNotice}</span>
+          <button onClick={() => setStoreNotice(null)}>✕</button>
+        </div>
+      )}
 
       {/* Main Content Area */}
       {activeTab === 'browse' && (
         <div className="space-y-10">
+          {/* Verified Stores Approved by Admin */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-wider opacity-70">
+                {isBn ? '🏪 অ্যাডমিন অনুমোদিত অর্গানিক স্টোরসমূহ' : '🏪 Admin-Verified Organic Partner Stores'}
+              </h3>
+              <button
+                onClick={() => setActiveTab('seller')}
+                className="text-xs font-extrabold text-blue-600 dark:text-blue-400 underline"
+              >
+                {isBn ? '+ আপনার নিজের দোকান চালু করার আবেদন করুন' : '+ Register Your Own Store'}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {hubState.stores
+                .filter((s) => s.status === 'approved')
+                .map((st) => (
+                  <div
+                    key={st.id}
+                    className={`p-4 rounded-2xl border flex items-start gap-3 ${
+                      darkMode ? 'bg-slate-900 border-emerald-500/30' : 'bg-emerald-50/50 border-emerald-200'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shrink-0">
+                      🏪
+                    </div>
+                    <div className="text-xs space-y-0.5">
+                      <div className="font-extrabold">{st.storeName}</div>
+                      <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                        ✓ Admin Approved • {st.location}
+                      </div>
+                      <p className="text-[11px] opacity-75 line-clamp-2">{st.description}</p>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+
           <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
              {['All', 'Oils', 'Grains', 'Tea', 'Superfoods'].map(cat => (
                <button key={cat} className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all whitespace-nowrap ${darkMode ? 'border-slate-800 bg-slate-900 text-slate-400' : 'border-slate-200 bg-white hover:border-orange-400 text-slate-600'}`}>
@@ -386,42 +465,143 @@ const EcommerceView: React.FC<Props> = ({ user, profile, lang, darkMode, onUpdat
         </div>
       )}
 
-      {/* Businessman Path: Registration */}
-      {activeTab === 'seller' && marketRole === 'businessman' && !user?.isSeller && (
+      {/* Businessman Path: Store Registration (Sent to Admin Panel) */}
+      {activeTab === 'seller' && !isMyStoreApproved && (
         <div className={`p-8 md:p-12 rounded-[40px] border shadow-2xl text-center space-y-8 animate-in zoom-in duration-500 ${darkMode ? 'bg-slate-900 border-blue-500/30' : 'bg-white border-blue-100'}`}>
-          <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/30 rounded-full mx-auto flex items-center justify-center text-4xl shadow-lg">🏢</div>
-          <div className="max-w-md mx-auto space-y-4">
-            <h3 className="text-3xl font-bold serif italic">{t.seller_reg}</h3>
-            <p className="text-sm opacity-60">Verified institutions can list clinically mapped food products for our community.</p>
-          </div>
-          
-          <div className="grid grid-cols-1 gap-6 max-w-sm mx-auto text-left">
-             <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase opacity-40 px-2">{t.institution_name}</label>
-                <input type="text" placeholder="e.g. Pure-Ayur Labs" className={`w-full p-4 rounded-xl border-2 outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`} />
-             </div>
-             <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase opacity-40 px-2">{t.license_no}</label>
-                <input type="text" placeholder="Trade-Lic-123456" className={`w-full p-4 rounded-xl border-2 outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`} />
-             </div>
-             <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase opacity-40 px-2">{t.contact_email}</label>
-                <input type="email" placeholder="sales@pureayur.com" className={`w-full p-4 rounded-xl border-2 outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`} />
-             </div>
+          <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/30 rounded-full mx-auto flex items-center justify-center text-4xl shadow-lg">🏪</div>
+          <div className="max-w-lg mx-auto space-y-3">
+            <h3 className="text-2xl md:text-3xl font-bold serif italic">
+              {isBn ? 'মার্কেটপ্লেসে আপনার দোকান চালু করুন' : t.seller_reg}
+            </h3>
+            <p className="text-xs md:text-sm opacity-70">
+              {isBn
+                ? 'নিচের ফর্মটি পূরণ করে জমা দিলে তা অ্যাডমিন প্যানেলে নোটিফিকেশন হিসেবে যাবে। অ্যাডমিন প্যানেল যাচাই করে অ্যাপ্রুভ করলেই আপনার দোকান চালু হয়ে যাবে।'
+                : 'Submit your store registration below. Admin Panel will receive a notification and approve your shop.'}
+            </p>
           </div>
 
-          <button 
-            onClick={handleSellerRegister}
-            disabled={isRegisteringSeller}
-            className="px-12 py-5 rounded-[30px] bg-blue-600 text-white font-black uppercase tracking-widest text-sm shadow-xl hover:bg-blue-500 transition-all disabled:opacity-50"
-          >
-            {isRegisteringSeller ? 'Verifying Trade License...' : 'Submit Application'}
-          </button>
+          {myStoreApplication && myStoreApplication.status === 'pending' ? (
+            <div className="max-w-md mx-auto p-6 rounded-3xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-600 dark:text-amber-300 space-y-2">
+              <div className="text-2xl">⏳</div>
+              <h4 className="font-extrabold text-sm">
+                {isBn
+                  ? `আপনার "${myStoreApplication.storeName}" দোকানের আবেদন অ্যাডমিন প্যানেলে অপেক্ষমাণ আছে`
+                  : `Your store "${myStoreApplication.storeName}" is Pending Admin Approval`}
+              </h4>
+              <p className="text-xs opacity-80">
+                {isBn
+                  ? 'অ্যাডমিন প্যানেল থেকে অ্যাপ্রুভ করার সাথে সাথেই আপনি এখানে পণ্য যুক্ত করতে পারবেন।'
+                  : 'Once approved in the Admin Panel, your seller dashboard will unlock automatically.'}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto text-left">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase opacity-60 px-2">
+                    {isBn ? 'দোকান / প্রতিষ্ঠানের নাম *' : t.institution_name}
+                  </label>
+                  <input
+                    type="text"
+                    value={storeForm.storeName}
+                    onChange={(e) => setStoreForm({ ...storeForm, storeName: e.target.value })}
+                    placeholder={isBn ? 'যেমন: গ্রিন হারভেস্ট অর্গানিক ফুডস' : 'e.g. Pure-Ayur Labs'}
+                    className={`w-full p-3.5 rounded-xl border-2 text-xs outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase opacity-60 px-2">
+                    {isBn ? 'মালিকের নাম *' : 'Owner Name *'}
+                  </label>
+                  <input
+                    type="text"
+                    value={storeForm.ownerName}
+                    onChange={(e) => setStoreForm({ ...storeForm, ownerName: e.target.value })}
+                    placeholder={isBn ? 'আপনার নাম' : 'Your Full Name'}
+                    className={`w-full p-3.5 rounded-xl border-2 text-xs outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase opacity-60 px-2">
+                    {isBn ? 'ট্রেড লাইসেন্স / এনআইডি নম্বর *' : t.license_no}
+                  </label>
+                  <input
+                    type="text"
+                    value={storeForm.licenseNumber}
+                    onChange={(e) => setStoreForm({ ...storeForm, licenseNumber: e.target.value })}
+                    placeholder="Trade-Lic-123456"
+                    className={`w-full p-3.5 rounded-xl border-2 text-xs outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase opacity-60 px-2">
+                    {isBn ? 'মোবাইল নম্বর *' : 'Mobile Number *'}
+                  </label>
+                  <input
+                    type="text"
+                    value={storeForm.ownerPhone}
+                    onChange={(e) => setStoreForm({ ...storeForm, ownerPhone: e.target.value })}
+                    placeholder="017XXXXXXXX"
+                    className={`w-full p-3.5 rounded-xl border-2 text-xs outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase opacity-60 px-2">
+                    {isBn ? 'ইমেইল *' : t.contact_email}
+                  </label>
+                  <input
+                    type="email"
+                    value={storeForm.ownerEmail}
+                    onChange={(e) => setStoreForm({ ...storeForm, ownerEmail: e.target.value })}
+                    placeholder="store@example.com"
+                    className={`w-full p-3.5 rounded-xl border-2 text-xs outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase opacity-60 px-2">
+                    {isBn ? 'ঠিকানা / শহর' : 'Location / City'}
+                  </label>
+                  <input
+                    type="text"
+                    value={storeForm.location}
+                    onChange={(e) => setStoreForm({ ...storeForm, location: e.target.value })}
+                    className={`w-full p-3.5 rounded-xl border-2 text-xs outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[10px] font-black uppercase opacity-60 px-2">
+                    {isBn ? 'পণ্যের বিবরণ (কী ধরনের অর্গানিক পণ্য বিক্রি করবেন)' : 'Store & Product Description'}
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={storeForm.description}
+                    onChange={(e) => setStoreForm({ ...storeForm, description: e.target.value })}
+                    placeholder={isBn ? 'যেমন: লাল চাল, ঘানির সরিষার তেল, অর্গানিক চিয়া সিড...' : 'Describe your organic products...'}
+                    className={`w-full p-3.5 rounded-xl border-2 text-xs outline-none focus:border-blue-500 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleSellerRegister}
+                disabled={isRegisteringSeller}
+                className="px-10 py-4 rounded-[28px] bg-blue-600 text-white font-black uppercase tracking-widest text-xs shadow-xl hover:bg-blue-500 transition-all disabled:opacity-50"
+              >
+                {isRegisteringSeller
+                  ? isBn
+                    ? 'পাঠানো হচ্ছে...'
+                    : 'Submitting...'
+                  : isBn
+                  ? 'অ্যাডমিন অনুমোদনের জন্য জমা দিন'
+                  : 'Submit Store for Admin Approval'}
+              </button>
+            </>
+          )}
         </div>
       )}
 
       {/* Businessman Path: Dashboard & Add Product */}
-      {activeTab === 'seller' && user?.isSeller && (
+      {activeTab === 'seller' && isMyStoreApproved && (
         <div className="space-y-8 animate-in slide-in-from-bottom duration-500">
            {!isAddingProduct ? (
              <>

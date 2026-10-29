@@ -1,0 +1,133 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // MANDATORY DEFAULT-DENY CATCH-ALL (PILLAR 7)
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // CORE SECURITY & VALIDATION HELPERS
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.size() >= 3 && email.size() <= 254 && email.matches('^.+@.+\\..+$');
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email == 'ramkrisna97@gmail.com' && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    // ===============================================================
+    // ENTITY VALIDATION HELPERS (PILLAR 3)
+    // ===============================================================
+    function isValidPlatformHubState(data) {
+      let requiredFields = ['updatedAt', 'updatedByEmail', 'payloadJson'];
+      let allowedFields = [
+        'updatedAt',
+        'updatedByEmail',
+        'paymentsCount',
+        'storesCount',
+        'foodSuggestionsCount',
+        'bookingsCount',
+        'approvedPremiumEmails',
+        'payloadJson'
+      ];
+      return data.keys().hasAll(requiredFields) &&
+             data.keys().hasOnly(allowedFields) &&
+             data.updatedAt is string && data.updatedAt.size() >= 10 && data.updatedAt.size() <= 64 &&
+             data.updatedByEmail is string && data.updatedByEmail.size() >= 3 && data.updatedByEmail.size() <= 254 &&
+             data.payloadJson is string && data.payloadJson.size() >= 2 && data.payloadJson.size() <= 950000 &&
+             (!('paymentsCount' in data) || (data.paymentsCount is int && data.paymentsCount >= 0 && data.paymentsCount <= 100000)) &&
+             (!('storesCount' in data) || (data.storesCount is int && data.storesCount >= 0 && data.storesCount <= 100000)) &&
+             (!('foodSuggestionsCount' in data) || (data.foodSuggestionsCount is int && data.foodSuggestionsCount >= 0 && data.foodSuggestionsCount <= 100000)) &&
+             (!('bookingsCount' in data) || (data.bookingsCount is int && data.bookingsCount >= 0 && data.bookingsCount <= 100000)) &&
+             (!('approvedPremiumEmails' in data) || (data.approvedPremiumEmails is list && data.approvedPremiumEmails.size() <= 500));
+    }
+
+    function isValidUser(data) {
+      let requiredFields = ['uid', 'email', 'name', 'role'];
+      let allowedFields = ['uid', 'email', 'name', 'role', 'isSubscribed', 'region', 'privacyConsent', 'updatedAt'];
+      return data.keys().hasAll(requiredFields) &&
+             data.keys().hasOnly(allowedFields) &&
+             data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+             isValidEmail(data.email) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+             data.role in ['user', 'doctor', 'vendor', 'admin'] &&
+             (!('isSubscribed' in data) || data.isSubscribed is bool) &&
+             (!('region' in data) || data.region in ['US', 'GB', 'IN', 'AU', 'ES', 'BD']) &&
+             (!('privacyConsent' in data) || data.privacyConsent is bool) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() >= 10 && data.updatedAt.size() <= 64));
+    }
+
+    // ===============================================================
+    // COLLECTION RULES
+    // ===============================================================
+    match /platform_hub/{docId} {
+      allow read: if isValidId(docId) && isAuthenticated();
+      allow create: if isValidId(docId) &&
+                    isAuthenticated() &&
+                    isValidPlatformHubState(incoming());
+      allow update: if isValidId(docId) &&
+                    isAuthenticated() &&
+                    isValidPlatformHubState(incoming()) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'updatedAt',
+                      'updatedByEmail',
+                      'paymentsCount',
+                      'storesCount',
+                      'foodSuggestionsCount',
+                      'bookingsCount',
+                      'approvedPremiumEmails',
+                      'payloadJson'
+                    ]) &&
+                    (!('approvedPremiumEmails' in existing()) ||
+                      incoming().approvedPremiumEmails == existing().approvedPremiumEmails ||
+                      isAdmin());
+      allow delete: if isValidId(docId) && isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow create: if isValidId(userId) &&
+                    isOwner(userId) &&
+                    isValidUser(incoming()) &&
+                    incoming().uid == userId &&
+                    ((incoming().role == 'user' && (!('isSubscribed' in incoming()) || incoming().isSubscribed == false)) || isAdmin());
+      allow update: if isValidId(userId) &&
+                    isValidUser(incoming()) &&
+                    incoming().uid == existing().uid &&
+                    ((isOwner(userId) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'updatedAt', 'region', 'privacyConsent']) &&
+                      incoming().role == existing().role &&
+                      incoming().email == existing().email) || isAdmin());
+      allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+    }
+  }
+}

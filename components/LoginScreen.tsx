@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { User, Language } from '../types';
 import { translations } from '../i18n';
+import { signInWithGoogleAccount, isAdminEmail } from '../firebase';
 
 interface Props {
   onLogin: (user: User) => void;
@@ -12,87 +12,142 @@ interface Props {
   onBack?: () => void;
 }
 
-const LoginScreen: React.FC<Props> = ({ onLogin, lang, darkMode, isDoctorFlow, isSelfFlow, onBack }) => {
+const LoginScreen: React.FC<Props> = ({
+  onLogin,
+  lang,
+  darkMode,
+  isDoctorFlow,
+  onBack,
+}) => {
   const t = translations[lang];
+  const isBn = lang === 'bn';
   const [loading, setLoading] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleLogin = (isDoctor = false) => {
+  const handleGoogleSignIn = async (isDoctor = false) => {
     setLoading(isDoctor ? 'doctor' : 'patient');
-    // Simulate API delay
-    setTimeout(() => {
-      const mockUser: User = {
-        id: isDoctor ? 'DOC-7712' : '12345',
-        name: isDoctor ? 'Dr. Sarah Wilson' : 'Guest User',
-        email: isDoctor ? 'dr.sarah@ayurmeta.com' : 'user@gmail.com',
-        photoUrl: 'https://via.placeholder.com/150',
-        isPro: true, 
+    setErrorMsg(null);
+    try {
+      const fbUser = await signInWithGoogleAccount();
+      const loggedUser: User = {
+        id: isDoctor
+          ? `DOC-${fbUser.uid.slice(0, 5).toUpperCase()}`
+          : `USR-${fbUser.uid.slice(0, 5).toUpperCase()}`,
+        name: fbUser.displayName || (isDoctor ? 'Dr. Specialist' : 'Google User'),
+        email: fbUser.email || 'user@gmail.com',
+        photoUrl: fbUser.photoURL || undefined,
+        firebaseUid: fbUser.uid,
+        isAdmin: isAdminEmail(fbUser.email),
+        isPro: isAdminEmail(fbUser.email),
+        profileType: isDoctor ? 'doctor' : 'self',
         trialStartDate: new Date().toISOString(),
-        points: 0,
-        badges: []
+        points: 100,
+        badges: [],
       };
-      onLogin(mockUser);
+      onLogin(loggedUser);
+    } catch (err: any) {
+      setErrorMsg(
+        isBn
+          ? 'Google সাইন-ইন পপআপ সম্পন্ন হয়নি। আবার চেষ্টা করুন অথবা গেস্ট মোডে এগিয়ে যান।'
+          : 'Google Sign-In popup was closed or blocked. Please try again.'
+      );
+    } finally {
       setLoading(null);
-    }, 1500);
+    }
   };
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
-      <div className={`w-full max-w-md p-10 rounded-[40px] shadow-2xl border text-center transition-colors ${
-        darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
-      }`}>
-        <div className="mb-10">
-          <div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center text-5xl mb-6 shadow-xl ${
-            isDoctorFlow ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'
-          }`}>
+      <div
+        className={`w-full max-w-md p-10 rounded-[40px] shadow-2xl border text-center transition-colors ${
+          darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
+        }`}
+      >
+        <div className="mb-8">
+          <div
+            className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center text-5xl mb-6 shadow-xl ${
+              isDoctorFlow
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'bg-emerald-500/20 text-emerald-400'
+            }`}
+          >
             {isDoctorFlow ? '🩺' : '🧬'}
           </div>
-          <h2 className={`text-3xl font-bold serif italic mb-2 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+          <h2
+            className={`text-3xl font-bold serif italic mb-2 ${
+              darkMode ? 'text-white' : 'text-slate-900'
+            }`}
+          >
             {isDoctorFlow ? t.role_doctor_nutritionist : t.login_title}
           </h2>
           <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-            {isDoctorFlow ? "Access your clinical dashboard." : t.login_subtitle}
+            {isBn
+              ? 'আপনার Google Account (Firebase Auth) দিয়ে প্রোফাইল ও ডাটাবেস যুক্ত করুন'
+              : t.login_subtitle}
           </p>
         </div>
 
+        {errorMsg && (
+          <div className="mb-4 p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-500 text-xs font-bold">
+            {errorMsg}
+          </div>
+        )}
+
         <div className="space-y-4">
-          {isDoctorFlow ? (
-             <button
-                onClick={() => handleLogin(true)}
-                disabled={!!loading}
-                className={`w-full py-5 px-6 rounded-2xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 transition-all shadow-lg active:scale-95 bg-blue-600 text-white hover:bg-blue-500`}
-              >
-                {loading === 'doctor' ? (
-                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : "Enter Dashboard"}
-              </button>
-          ) : (
-            <button
-              onClick={() => handleLogin(false)}
-              disabled={!!loading}
-              className={`w-full py-5 px-6 rounded-2xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 transition-all shadow-lg active:scale-95 ${
-                darkMode ? 'bg-white text-slate-900 hover:bg-slate-200' : 'bg-slate-900 text-white hover:bg-slate-800'
-              }`}
-            >
-              {loading === 'patient' ? (
-                <span className="w-5 h-5 border-2 border-slate-400 border-t-slate-900 rounded-full animate-spin" />
-              ) : (
-                <>
-                  <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
-                  {t.login_google}
-                </>
-              )}
-            </button>
-          )}
+          <button
+            onClick={() => handleGoogleSignIn(Boolean(isDoctorFlow))}
+            disabled={!!loading}
+            className={`w-full py-5 px-6 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all shadow-lg active:scale-95 ${
+              darkMode
+                ? 'bg-white text-slate-900 hover:bg-slate-200'
+                : 'bg-slate-900 text-white hover:bg-slate-800'
+            }`}
+          >
+            {loading ? (
+              <span className="w-5 h-5 border-2 border-slate-400 border-t-slate-900 rounded-full animate-spin" />
+            ) : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    fill="#4285F4"
+                  />
+                  <path
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    fill="#34A853"
+                  />
+                  <path
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    fill="#FBBC05"
+                  />
+                  <path
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    fill="#EA4335"
+                  />
+                </svg>
+                <span>
+                  {isBn ? 'Google Account দিয়ে সাইন-ইন করুন' : t.login_google}
+                </span>
+              </>
+            )}
+          </button>
 
           {onBack && (
-            <button onClick={onBack} className="w-full text-center text-xs font-bold opacity-40 uppercase hover:opacity-100 transition-opacity">
+            <button
+              onClick={onBack}
+              className="w-full text-center text-xs font-bold opacity-40 uppercase hover:opacity-100 transition-opacity"
+            >
               {t.back}
             </button>
           )}
         </div>
-        
-        <p className={`mt-10 text-[10px] leading-relaxed font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-          Secure clinical data protection. By continuing, you agree to our <br/> Terms of Clinical Service and HIPAA Compliance Privacy Policy.
+
+        <p
+          className={`mt-10 text-[10px] leading-relaxed font-medium ${
+            darkMode ? 'text-slate-500' : 'text-slate-400'
+          }`}
+        >
+          Secure clinical data protection powered by Firebase Auth & Cloudflare D1 Free Tier.
         </p>
       </div>
     </div>

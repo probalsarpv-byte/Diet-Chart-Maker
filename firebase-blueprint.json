@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "PlatformHubState": {
+      "title": "PlatformHubState",
+      "description": "Shared state document for manual payments, marketplace stores, food suggestions, community moderation, nutritionist listings, and bookings.",
+      "type": "object",
+      "properties": {
+        "updatedAt": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "ISO timestamp of last state update"
+        },
+        "updatedByEmail": {
+          "type": "string",
+          "maxLength": 254,
+          "description": "Email of the authenticated user who triggered the state sync"
+        },
+        "paymentsCount": {
+          "type": "integer",
+          "description": "Total manual payment records"
+        },
+        "storesCount": {
+          "type": "integer",
+          "description": "Total marketplace store registrations"
+        },
+        "foodSuggestionsCount": {
+          "type": "integer",
+          "description": "Total food suggestions"
+        },
+        "bookingsCount": {
+          "type": "integer",
+          "description": "Total nutritionist bookings"
+        },
+        "approvedPremiumEmails": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of approved premium subscriber emails"
+        },
+        "payloadJson": {
+          "type": "string",
+          "maxLength": 950000,
+          "description": "JSON serialized PlatformHubState payload"
+        }
+      },
+      "required": ["updatedAt", "updatedByEmail", "payloadJson"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user account, privacy consent, and role record",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 254 },
+        "name": { "type": "string", "maxLength": 120 },
+        "role": { "type": "string", "enum": ["user", "doctor", "vendor", "admin"] },
+        "isSubscribed": { "type": "boolean" },
+        "region": { "type": "string", "enum": ["US", "GB", "IN", "AU", "ES", "BD"] },
+        "privacyConsent": { "type": "boolean" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["uid", "email", "name", "role"]
+    }
+  },
+  "firestore": {
+    "/platform_hub/{docId}": {
+      "schema": {
+        "$ref": "#/entities/PlatformHubState"
+      },
+      "description": "Platform ecosystem state synchronized across visitor, nutritionist, vendor, and admin views."
+    },
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Individual user profile, privacy consent, and role metadata."
+    }
+  }
+}

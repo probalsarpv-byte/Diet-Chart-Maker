@@ -24,6 +24,7 @@ import {
   buildBdFctFoodExchangeTable,
   generateComprehensiveTrafficLightGuide,
 } from "../data/bdFoodCompositionDatabase";
+import { redactPromptPII } from "./securityPrivacyService";
 
 export interface FoodSafetyVerdict {
   foodName: string;
@@ -59,6 +60,11 @@ export class GeminiService {
       return "";
     }
 
+    const sanitizedContents =
+      typeof params.contents === "string"
+        ? redactPromptPII(params.contents)
+        : params.contents;
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 9500);
     try {
@@ -73,7 +79,7 @@ export class GeminiService {
         signal: controller.signal,
         body: JSON.stringify({
           model: params.model || "gemini-3.8-flash",
-          contents: params.contents,
+          contents: sanitizedContents,
           config: params.config,
           userGeminiAccount: userAccount.accountEmail || "connected",
         }),
@@ -1700,7 +1706,7 @@ export class GeminiService {
 - Ayurvedic Prakriti/Vikriti Dosha: ${profile.dosha} | Gut Microbiome Score: ${profile.microbiomeScore}/100 | Inflammatory Index: ${profile.inflammatoryIndex}/10 | Metabolic Type: ${profile.metabolicType}
 - ${cohortDetails}
 - Medical Conditions: ${profile.medicalConditions || "None reported"}
-- Current Medications: ${profile.currentMedicationsList?.join(", ") || profile.medications || "None"}
+- Current Medications: ${Array.isArray(profile.currentMedicationsList) ? profile.currentMedicationsList.join(", ") : profile.currentMedicationsList || profile.medications || "None"}
 - Lab Markers: ${labMarkers || "Standard clinical baseline"}
 - Meal Frequency: ${profile.mealFrequency || 3} meals/day | Hypoacidity/Bloating: ${profile.hasHypoacidity ? "Yes (needs pre-meal ginger-pink salt digestive primer, avoid raw cold foods)" : "No"}
 - Dinner Carb Rule: ${dinnerRuleDesc}

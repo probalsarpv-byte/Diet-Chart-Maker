@@ -752,7 +752,7 @@ export function classifyBdFoodToTrafficLight(
   const cohort = profile?.cohortType || 'adult_metabolic';
   const isPregnant = cohort === 'pregnancy_lactation';
   const isChild = cohort === 'child_pediatric';
-  const isOncology = cohort === 'oncology';
+  const isOncology = cohort === 'oncology_cancer';
 
   const hasDiabetesOrIR =
     cond.includes('diab') ||
@@ -1063,7 +1063,7 @@ export function generateComprehensiveTrafficLightGuide(profile?: HealthProfile |
         (profile?.microbiomeScore || 80) < 75;
 
   const recommendedMealFrequency: 3 | 4 =
-    cohort === 'pregnancy_lactation' || cohort === 'child_pediatric' || cohort === 'oncology'
+    cohort === 'pregnancy_lactation' || cohort === 'child_pediatric' || cohort === 'oncology_cancer'
       ? 4
       : isDiabeticOrIR
       ? 3

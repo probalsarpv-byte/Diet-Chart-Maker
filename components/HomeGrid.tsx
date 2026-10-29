@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { HealthProfile, Language, User } from '../types';
 import { translations } from '../i18n';
+import { isAdminEmail } from '../firebase';
 
 interface Props {
   onNavigate: (view: any) => void;
@@ -35,6 +36,9 @@ const HomeGrid: React.FC<Props> = ({ onNavigate, lang, darkMode, user, profile }
   const t = translations[lang];
   const isBn = lang === 'bn';
   const isUnlocked = Boolean(user && profile);
+  const isAuthenticatedAdmin = Boolean(
+    user?.isAdmin && user?.firebaseUid && isAdminEmail(user?.email)
+  );
 
   const getRoleBadge = () => {
     if (!user) return isBn ? 'গেস্ট মোড (প্রোফাইল ঐচ্ছিক)' : 'Guest Mode (Profile Optional)';
@@ -45,7 +49,7 @@ const HomeGrid: React.FC<Props> = ({ onNavigate, lang, darkMode, user, profile }
   };
 
   // Colorful Figma-styled feature cards outside Diet Maker
-  const menuItems = [
+  const allMenuItems = [
     {
       id: 'calorie_tracker',
       icon: Flame,
@@ -157,8 +161,8 @@ const HomeGrid: React.FC<Props> = ({ onNavigate, lang, darkMode, user, profile }
     {
       id: 'community',
       icon: Users,
-      label: isBn ? 'কমিউনিটি হাব' : t.nav_community,
-      sub: isBn ? 'অভিজ্ঞতা শেয়ার ও সাপোর্ট গ্রুপ' : 'Patient Stories & Support Hub',
+      label: isBn ? 'কমিউনিটি হাব (AI মডারেটেড)' : t.nav_community,
+      sub: isBn ? 'অভিজ্ঞতা শেয়ার, সাপোর্ট ও সেফ কমিউনিটি' : 'Patient Stories & AI-Moderated Hub',
       badge: isBn ? 'কমিউনিটি' : 'Community',
       iconGradient: 'from-violet-500 via-purple-500 to-fuchsia-600',
       shadowColor: 'shadow-violet-500/30',
@@ -166,7 +170,39 @@ const HomeGrid: React.FC<Props> = ({ onNavigate, lang, darkMode, user, profile }
       surfaceDark: 'from-violet-950/35 via-slate-900 to-fuchsia-950/25 border-violet-500/30 hover:border-violet-400',
       badgeStyle: 'bg-violet-500/15 text-violet-600 dark:text-violet-300 border-violet-500/30',
     },
+    {
+      id: 'nutritionist_hub',
+      icon: Stethoscope,
+      label: isBn ? 'পুষ্টিবিদ ও ডায়েটিশিয়ান হাব' : 'Nutritionist & Dietitian Hub',
+      sub: isBn
+        ? 'ফিচার্ড ডায়েটিশিয়ান বুকিং ও সরাসরি Google Meet কনসালটেশন'
+        : 'Featured Dietitians, Appointment Booking & Google Meet',
+      badge: isBn ? 'Google Meet যুক্ত' : 'Google Meet',
+      iconGradient: 'from-teal-500 via-cyan-500 to-blue-600',
+      shadowColor: 'shadow-teal-500/30',
+      surfaceLight: 'from-cyan-50/90 via-white to-teal-50/60 border-cyan-200/80 hover:border-cyan-400',
+      surfaceDark: 'from-cyan-950/35 via-slate-900 to-teal-950/25 border-cyan-500/30 hover:border-cyan-400',
+      badgeStyle: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
+    },
+    {
+      id: 'admin_panel',
+      icon: HeartHandshake,
+      label: isBn ? 'অ্যাডমিন প্যানেল ও গেটওয়ে' : 'Admin Panel & Gateway',
+      sub: isBn
+        ? 'পেমেন্ট অ্যাপ্রুভাল, মেইল, স্টোর, ফুড সাজেশন, বুকিং ও ইউজার ব্যান'
+        : 'Payment Approvals, Email, Stores, Food Box, Bookings & Moderation',
+      badge: isBn ? 'অ্যাডমিন কন্ট্রোল' : 'Admin Control',
+      iconGradient: 'from-slate-800 via-indigo-600 to-purple-700',
+      shadowColor: 'shadow-indigo-500/30',
+      surfaceLight: 'from-indigo-50/90 via-white to-slate-100 border-indigo-300 hover:border-indigo-500',
+      surfaceDark: 'from-indigo-950/50 via-slate-900 to-purple-950/40 border-indigo-500/40 hover:border-indigo-400',
+      badgeStyle: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
+    },
   ];
+
+  const menuItems = allMenuItems.filter(
+    (item) => item.id !== 'admin_panel' || isAuthenticatedAdmin
+  );
 
   return (
     <div className="animate-in fade-in duration-500 max-w-6xl mx-auto py-3 md:py-6 space-y-8">

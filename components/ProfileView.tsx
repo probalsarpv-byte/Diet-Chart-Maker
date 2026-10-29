@@ -11,7 +11,12 @@ import {
   toggleUserGeminiAccount,
   subscribeUserGeminiAccount,
 } from '../services/aiModeService';
-import { ShieldCheck, Sparkles } from 'lucide-react';
+import {
+  loadPlatformState,
+  subscribePlatformState,
+} from '../services/platformHubService';
+import { signInWithGoogleAccount, signOutGoogleAccount, isAdminEmail } from '../firebase';
+import { CreditCard, ExternalLink, LogOut, Mail, ShieldCheck, Sparkles, Video } from 'lucide-react';
 
 interface Props {
   user: User;
@@ -23,6 +28,9 @@ interface Props {
   onNavigateToDietMaker?: () => void;
   onNavigateToFamilyPot?: () => void;
   onNavigateToDashboard?: () => void;
+  onOpenPaywall?: () => void;
+  onNavigateToAdmin?: () => void;
+  onNavigateToNutritionistHub?: () => void;
   onUpdateUser?: (updated: User) => void;
   onUpdateProfile?: (updated: HealthProfile) => void;
 }
@@ -37,6 +45,9 @@ const ProfileView: React.FC<Props> = ({
   onNavigateToDietMaker,
   onNavigateToFamilyPot,
   onNavigateToDashboard,
+  onOpenPaywall,
+  onNavigateToAdmin,
+  onNavigateToNutritionistHub,
   onUpdateUser,
   onUpdateProfile,
 }) => {
@@ -44,15 +55,67 @@ const ProfileView: React.FC<Props> = ({
   const isBn = lang === 'bn';
   const [copied, setCopied] = useState(false);
   const [showPortal, setShowPortal] = useState(false);
+  const [hubState, setHubState] = useState(() => loadPlatformState());
   const [geminiAccount, setGeminiAccount] = useState<UserGeminiAccountConfig>(() =>
     getUserGeminiAccount()
   );
 
   useEffect(() => {
-    return subscribeUserGeminiAccount((cfg) => {
+    const unsub1 = subscribeUserGeminiAccount((cfg) => {
       setGeminiAccount(cfg);
     });
+    const unsub2 = subscribePlatformState((st) => {
+      setHubState(st);
+    });
+    return () => {
+      unsub1();
+      unsub2();
+    };
   }, []);
+
+  const isAuthenticatedAdmin = Boolean(
+    user.isAdmin && user.firebaseUid && isAdminEmail(user.email)
+  );
+
+  const handleConnectGoogleProfile = async () => {
+    try {
+      const fbUser = await signInWithGoogleAccount();
+      const adminStatus = isAdminEmail(fbUser.email);
+      if (onUpdateUser) {
+        onUpdateUser({
+          ...user,
+          name: fbUser.displayName || user.name,
+          email: fbUser.email || user.email,
+          photoUrl: fbUser.photoURL || user.photoUrl,
+          firebaseUid: fbUser.uid,
+          isAdmin: adminStatus,
+          isPro: adminStatus ? true : user.isPro,
+        });
+      }
+    } catch (err) {
+      console.error('Google Sign-In error:', err);
+    }
+  };
+
+  const handleDisconnectGoogleProfile = async () => {
+    try {
+      await signOutGoogleAccount();
+      if (onUpdateUser) {
+        onUpdateUser({
+          ...user,
+          firebaseUid: undefined,
+          isAdmin: false,
+        });
+      }
+    } catch (err) {
+      console.error('Google Sign-Out error:', err);
+    }
+  };
+
+  // Bookings confirmed by Admin for Nutritionist
+  const confirmedBookingsForDoctor = hubState.bookings.filter(
+    (b) => b.status === 'confirmed_for_nutritionist'
+  );
 
   const initialRole: ProfileRoleType =
     user.profileType || (user.id.startsWith('DOC-') ? 'doctor' : user.isFamilyManager ? 'family' : 'self');
@@ -236,6 +299,133 @@ const ProfileView: React.FC<Props> = ({
           </button>
         </div>
       </div>
+
+      {/* Firebase Google Account Login in User Profile + Manual Payment Subscription + Admin Access Bar */}
+      <div
+        className={`p-4 md:p-5 rounded-[28px] border shadow-sm flex flex-wrap items-center justify-between gap-3 ${
+          darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          {user.photoUrl ? (
+            <img src={user.photoUrl} alt={user.name} className="w-10 h-10 rounded-full border" />
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-600 flex items-center justify-center font-black">
+              G
+            </div>
+          )}
+          <div>
+            <div className="text-xs font-extrabold flex flex-wrap items-center gap-2">
+              <span>{user.email || 'user@precision.com'}</span>
+              {user.firebaseUid ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/15 text-emerald-500 font-black">
+                  ✓ {isBn ? 'Google মেইল লগইন সম্পন্ন' : 'Google Logged In'}
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 font-black">
+                  {isBn ? 'Google লগইন করা হয়নি' : 'Not Logged In with Google'}
+                </span>
+              )}
+              {isAuthenticatedAdmin && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-indigo-600 text-white font-black">
+                  🛡️ {isBn ? 'অ্যাডমিন অ্যাকাউন্ট আনলকড' : 'Admin Verified'}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] opacity-65">
+              {isBn
+                ? 'ইউজার প্রোফাইলে Google মেইল দিয়ে লগইন করুন (অ্যাডমিন ইমেইল দিয়ে লগইন করলেই কেবল অ্যাডমিন ফিচার দৃশ্যমান হবে)'
+                : 'Sign in with Google Mail in User Profile (Admin features unlock exclusively for the Admin Google email)'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleConnectGoogleProfile}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-md"
+          >
+            {user.firebaseUid
+              ? isBn
+                ? '🔄 অন্য Google মেইল দিয়ে লগইন'
+                : '🔄 Switch Google Account'
+              : isBn
+              ? '🔗 Google Mail দিয়ে লগইন করুন'
+              : '🔗 Sign in with Google Mail'}
+          </button>
+
+          {user.firebaseUid && (
+            <button
+              type="button"
+              onClick={handleDisconnectGoogleProfile}
+              className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
+                darkMode
+                  ? 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{isBn ? 'লগআউট' : 'Sign Out'}</span>
+            </button>
+          )}
+
+          {onOpenPaywall && (
+            <button
+              type="button"
+              onClick={onOpenPaywall}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>{isBn ? 'প্রিমিয়াম পেমেন্ট ফর্ম' : 'Manual Payment Form'}</span>
+            </button>
+          )}
+
+          {isAuthenticatedAdmin && onNavigateToAdmin && (
+            <button
+              type="button"
+              onClick={onNavigateToAdmin}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold shadow-md flex items-center gap-1.5"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>{isBn ? 'অ্যাডমিন প্যানেল খুলুন' : 'Open Admin Panel'}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Latest Admin Approval Notifications / Emails */}
+      {hubState.notifications.length > 0 && (
+        <div
+          className={`p-4 md:p-5 rounded-[28px] border-2 space-y-2 ${
+            darkMode
+              ? 'bg-emerald-950/25 border-emerald-500/40'
+              : 'bg-emerald-50/80 border-emerald-300'
+          }`}
+        >
+          <div className="flex items-center gap-2 text-xs font-black text-emerald-600 dark:text-emerald-400">
+            <Mail className="w-4 h-4" />
+            <span>
+              {isBn
+                ? 'অ্যাডমিন প্যানেল থেকে প্রাপ্ত অ্যাপ্রুভাল মেইল ও নোটিফিকেশন'
+                : 'Approval Emails & Notifications from Admin Panel'}
+            </span>
+          </div>
+          {hubState.notifications.slice(0, 2).map((notif) => (
+            <div
+              key={notif.id}
+              className={`p-3.5 rounded-2xl border text-xs space-y-1 ${
+                darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+              }`}
+            >
+              <div className="font-extrabold">{isBn ? notif.titleBn : notif.titleEn}</div>
+              <pre className="whitespace-pre-wrap font-sans text-[11px] opacity-80">
+                {isBn ? notif.messageBn : notif.messageEn}
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -296,6 +486,84 @@ const ProfileView: React.FC<Props> = ({
                 {isBn ? 'ভেরিফাইড' : 'Verified'}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ADMIN-APPROVED TODAY'S CONSULTATION BOOKINGS WITH GOOGLE MEET */}
+        <div
+          className={`p-6 md:p-8 rounded-[36px] border-2 space-y-4 ${
+            darkMode
+              ? 'bg-gradient-to-r from-slate-900 via-teal-950/40 to-emerald-950/30 border-teal-500/40'
+              : 'bg-gradient-to-r from-teal-50 via-emerald-50/60 to-white border-teal-300 shadow-lg'
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-2xl shadow-md">
+                🔔
+              </div>
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-600 dark:text-emerald-300">
+                  {isBn
+                    ? 'অ্যাডমিন ভেরিফাইড অ্যাপয়েন্টমেন্ট • Google Meet'
+                    : 'Admin-Verified Appointments • Google Meet'}
+                </span>
+                <h3 className="text-lg font-extrabold mt-0.5">
+                  {isBn
+                    ? `আজকে আপনার ${confirmedBookingsForDoctor.length}টি কনফার্মড বুকিং আছে!`
+                    : `You Have ${confirmedBookingsForDoctor.length} Confirmed Consultation Booking(s) Today!`}
+                </h3>
+              </div>
+            </div>
+
+            {onNavigateToNutritionistHub && (
+              <button
+                onClick={onNavigateToNutritionistHub}
+                className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold"
+              >
+                {isBn ? 'পুষ্টিবিদ হাব ও ফিচার্ড প্রোফাইল দেখুন →' : 'Open Nutritionist Hub →'}
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {confirmedBookingsForDoctor.map((bk) => (
+              <div
+                key={bk.id}
+                className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 ${
+                  darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold text-teal-600 dark:text-teal-400">
+                    <span>
+                      📅 {bk.appointmentDate} • {bk.appointmentSlot}
+                    </span>
+                    <span>✓ Paid (৳{bk.consultationFeeBdt})</span>
+                  </div>
+                  <h4 className="font-extrabold text-sm mt-1">
+                    {isBn ? 'রোগী:' : 'Patient:'} {bk.patientName} ({bk.patientPhone})
+                  </h4>
+                  <p className="text-xs opacity-75 mt-1">{bk.healthConcern}</p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-[11px] opacity-65">
+                    {isBn ? bk.nutritionistNameBn : bk.nutritionistNameEn}
+                  </span>
+                  <a
+                    href={bk.googleMeetLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-md"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span>{isBn ? 'Google Meet-এ কথা বলুন' : 'Join Google Meet'}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

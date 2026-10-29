@@ -5,9 +5,10 @@ import { WeatherService } from '../services/weatherService';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { translations } from '../i18n';
 import SmartBazaar from './SmartBazaar';
-import { AlertTriangle, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, Sparkles, CheckCircle2, ClipboardCheck, Lock, Crown } from 'lucide-react';
 import PregnancyMilestonesDashboard from './PregnancyMilestonesDashboard';
 import ChildDevelopmentMilestones from './ChildDevelopmentMilestones';
+import PhaseTransitionModal from './PhaseTransitionModal';
 import {
   getUserGeminiAccount,
   subscribeUserGeminiAccount,
@@ -25,10 +26,11 @@ interface Props {
   onShowPaywall: () => void;
   onUpdateProfile: (p: HealthProfile) => void;
   initialChart: DietPhaseChart | null;
+  initialSubTab?: DietSubTab;
   onOpenTrafficLightGuide?: () => void;
 }
 
-type DietSubTab =
+export type DietSubTab =
   | 'meals'
   | 'oil_water'
   | 'exchange_detox'
@@ -161,18 +163,29 @@ const DietView: React.FC<Props> = ({
   onShowPaywall,
   onUpdateProfile,
   initialChart,
+  initialSubTab = 'meals',
   onOpenTrafficLightGuide,
 }) => {
   const t = translations[lang];
   const isBn = lang === 'bn';
+  const isPremiumUser = Boolean(user?.isPro || user?.isSubscribed || user?.isAdmin);
   const [chart, setChart] = useState<DietPhaseChart | null>(initialChart);
   const [loading, setLoading] = useState(!initialChart);
   const [currentDayIndex, setCurrentDayIndex] = useState(0);
   const [currentWeek, setCurrentWeek] = useState(1);
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<DietSubTab>('meals');
+  const [activeSubTab, setActiveSubTab] = useState<DietSubTab>(initialSubTab);
   const [geminiAccount, setGeminiAccount] = useState(getUserGeminiAccount);
   const [showVerificationDetails, setShowVerificationDetails] = useState(false);
+  const [pendingTargetPhase, setPendingTargetPhase] = useState<Phase | null>(null);
+
+  const unlockedPhases: Phase[] = profile.unlockedPhases?.length
+    ? profile.unlockedPhases
+    : [Phase.DETOX];
+
+  useEffect(() => {
+    setActiveSubTab(initialSubTab);
+  }, [initialSubTab]);
 
   const gemini = new GeminiService();
   const weatherService = new WeatherService();
@@ -203,7 +216,8 @@ const DietView: React.FC<Props> = ({
   const fetchChart = async (
     customProfile: HealthProfile = profile,
     assessment?: AssessmentData,
-    week: number = 1
+    week: number = 1,
+    phaseOverride?: Phase
   ) => {
     setLoading(true);
     try {
@@ -215,9 +229,10 @@ const DietView: React.FC<Props> = ({
         );
         setWeather(currentWeather);
       }
+      const activePhaseToLoad = phaseOverride || currentPhase;
       const result = await gemini.analyzeHealthAndPhase(
         customProfile,
-        currentPhase,
+        activePhaseToLoad,
         week,
         lang,
         assessment,
@@ -235,7 +250,7 @@ const DietView: React.FC<Props> = ({
   useEffect(() => {
     if (!initialChart) {
       setCurrentWeek(1);
-      fetchChart(profile, undefined, 1);
+      fetchChart(profile, undefined, 1, currentPhase);
     } else {
       setChart(initialChart);
       setLoading(false);
@@ -261,32 +276,25 @@ const DietView: React.FC<Props> = ({
 
   const handleNextWeek = () => {
     const nextWeek = currentWeek + 1;
-    if (nextWeek > 1 && !user?.isPro) {
-      onShowPaywall();
-      return;
-    }
     onWeekComplete();
     if (nextWeek <= 3) {
       setCurrentWeek(nextWeek);
       fetchChart(profile, undefined, nextWeek);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      if (!user?.isPro) {
-        onShowPaywall();
-        return;
-      }
-      onPhaseChange(Math.min(currentPhase + 1, 4) as Phase);
+    } else if (currentPhase < 4) {
+      const nextPhase = Math.min(currentPhase + 1, 4) as Phase;
+      setPendingTargetPhase(nextPhase);
     }
   };
 
   const handlePhaseClick = (p: number) => {
-    if (p !== currentPhase) {
-      if (!user?.isPro) {
-        onShowPaywall();
-        return;
-      }
-      onPhaseChange(p as Phase);
+    if (p === currentPhase) return;
+    const target = p as Phase;
+    if (target === Phase.DETOX || unlockedPhases.includes(target)) {
+      onPhaseChange(target);
+      return;
     }
+    setPendingTargetPhase(target);
   };
 
   const handleSubTabChange = (tab: DietSubTab) => {
@@ -306,12 +314,81 @@ const DietView: React.FC<Props> = ({
   const activeDinnerRule = profile.dinnerCarbRule || 'vegetable_carbs';
   const currentTabIndex = SUB_TABS.findIndex((item) => item.id === activeSubTab);
 
-  // Reusable Oil, Fat & Water Summary Sidebar/Panel
+  // Helper to render any locked/covered output section for non-premium users
+  const renderCoveredPremiumSection = (
+    titleBn: string,
+    titleEn: string,
+    descBn: string,
+    descEn: string,
+    children: React.ReactNode,
+    secondaryAction?: { labelBn: string; labelEn: string; onClick: () => void }
+  ) => {
+    if (isPremiumUser) {
+      return <>{children}</>;
+    }
+    return (
+      <div className="relative rounded-3xl overflow-hidden border border-amber-500/30 dark:border-amber-500/30">
+        <div
+          aria-hidden="true"
+          className="blur-[6px] select-none pointer-events-none opacity-50 transition-all"
+        >
+          {children}
+        </div>
+        <div
+          className={` inset-0 absolute z-10 flex flex-col items-center justify-center p-5 text-center backdrop-blur-[2px] ${
+            darkMode
+              ? 'bg-gradient-to-b from-slate-950/65 via-slate-900/85 to-slate-950/95'
+              : 'bg-gradient-to-b from-white/65 via-white/88 to-amber-50/95'
+          }`}
+        >
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/25 mb-2.5">
+            <Lock className="w-5 h-5" />
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 mb-1.5">
+            {isBn ? '🔒 প্রিমিয়াম কন্টেন্ট ঢাকা রয়েছে' : '🔒 Covered for Free Users'}
+          </span>
+          <h4 className="font-extrabold text-sm md:text-base max-w-md">
+            {isBn ? titleBn : titleEn}
+          </h4>
+          <p className="text-xs opacity-80 max-w-md mt-1 leading-relaxed">
+            {isBn ? descBn : descEn}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-3.5">
+            <button
+              type="button"
+              onClick={onShowPaywall}
+              className="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all active:scale-95"
+            >
+              <Crown className="w-4 h-4" />
+              <span>
+                {isBn ? 'প্রিমিয়াম আনলক করুন' : 'Unlock with Premium'}
+              </span>
+            </button>
+            {secondaryAction && (
+              <button
+                type="button"
+                onClick={secondaryAction.onClick}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                  darkMode
+                    ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {isBn ? secondaryAction.labelBn : secondaryAction.labelEn}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Reusable Oil, Fat & Water Summary Sidebar/Panel (Partially shown for non-premium users)
   const renderOilAndWaterPanel = () => {
     if (!chart) return null;
     return (
       <div className="space-y-5">
-        {/* Cooking Oil, Ghee & Fat Allocation Card */}
+        {/* Cooking Oil, Ghee & Fat Allocation Card (Visible Part) */}
         {chart.fatOilAllocation && (
           <div
             className={`p-5 md:p-6 rounded-3xl border ${
@@ -320,9 +397,16 @@ const DietView: React.FC<Props> = ({
                 : 'bg-amber-50/40 border-amber-200 shadow-sm'
             }`}
           >
-            <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-              {isBn ? 'রান্নার তেল, ঘি ও ফ্যাট বণ্টন' : 'Lipid & Cooking Oil Protocol'}
-            </span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                {isBn ? 'রান্নার তেল, ঘি ও ফ্যাট বণ্টন' : 'Lipid & Cooking Oil Protocol'}
+              </span>
+              {!isPremiumUser && (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  {isBn ? 'আংশিক প্রিভিউ' : 'Partial Preview'}
+                </span>
+              )}
+            </div>
             <h3 className="font-bold text-lg md:text-xl serif italic mt-0.5 mb-3">
               {isBn
                 ? 'রান্নার তেল ও ফ্যাটের ব্যবহার নির্দেশিকা'
@@ -379,110 +463,123 @@ const DietView: React.FC<Props> = ({
                 </div>
               </div>
 
-              <p className="text-xs leading-relaxed opacity-85 pt-1">
-                {chart.fatOilAllocation.clinicalInstruction}
-              </p>
+              {isPremiumUser && (
+                <>
+                  <p className="text-xs leading-relaxed opacity-85 pt-1">
+                    {chart.fatOilAllocation.clinicalInstruction}
+                  </p>
 
-              <div className="pt-2 border-t border-amber-200/50 dark:border-slate-800 text-xs space-y-1">
-                <div className="font-bold opacity-75">
-                  {isBn ? 'ডায়েটারি ফ্যাট সোর্স:' : 'Natural Dietary Fat Sources:'}
+                  <div className="pt-2 border-t border-amber-200/50 dark:border-slate-800 text-xs space-y-1">
+                    <div className="font-bold opacity-75">
+                      {isBn ? 'ডায়েটারি ফ্যাট সোর্স:' : 'Natural Dietary Fat Sources:'}
+                    </div>
+                    {chart.fatOilAllocation.dietaryFatSources?.map((src, idx) => (
+                      <div key={idx} className="opacity-80">
+                        • {src}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Remaining Oil, Salt, Water & Macro Distribution (Covered for non-premium users) */}
+        {renderCoveredPremiumSection(
+          'পানি, লবণ ও ম্যাক্রো বণ্টনের বিস্তারিত গাইড প্রিমিয়াম ইউজারদের জন্য ঢাকা রয়েছে',
+          'Full Water, Salt & Macro Distribution Protocol is Reserved for Premium Users',
+          'তেলের ক্লিনিক্যাল নির্দেশিকা, দৈনিক পিংক সল্ট ও পানির সুনির্দিষ্ট মাত্রা এবং ম্যাক্রো চার্ট সম্পূর্ণ দেখতে প্রিমিয়াম মেম্বারশিপ নিন।',
+          'Upgrade to Premium to view full cooking oil clinical instructions, quantitative salt/water prescription, and macro breakdown.',
+          <div className="space-y-5">
+            {/* Daily Salt & Water Quantitative Prescription Card */}
+            <div
+              className={`p-5 md:p-6 rounded-3xl border ${
+                darkMode
+                  ? 'bg-emerald-950/15 border-emerald-900/40'
+                  : 'bg-emerald-50/60 border-emerald-200 shadow-sm'
+              }`}
+            >
+              <h3 className="font-bold mb-3.5 text-lg md:text-xl serif italic text-emerald-700 dark:text-emerald-400">
+                {isBn ? 'দৈনিক পানি ও লবণের সুনির্দিষ্ট মাত্রা' : t.staples_title}
+              </h3>
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-emerald-200/60 dark:border-slate-800">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold uppercase tracking-wider opacity-60">
+                      🧂 {t.staple_salt}
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                      {chart.staplesAdvice?.saltGramsPerDay || '5g / Day'}
+                    </span>
+                  </div>
+                  <p className="text-xs font-medium leading-relaxed">{chart.staplesAdvice?.salt}</p>
                 </div>
-                {chart.fatOilAllocation.dietaryFatSources?.map((src, idx) => (
-                  <div key={idx} className="opacity-80">
-                    • {src}
+
+                <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-emerald-200/60 dark:border-slate-800">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold uppercase tracking-wider opacity-60">
+                      💧 {t.staple_water}
+                    </span>
+                    <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 tabular-nums">
+                      {chart.staplesAdvice?.waterLitersPerDay || '2.5 Liters / Day'}
+                    </span>
+                  </div>
+                  <p className="text-xs font-medium leading-relaxed">{chart.staplesAdvice?.water}</p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-emerald-200/60 dark:border-slate-800">
+                  <span className="text-xs font-bold uppercase tracking-wider opacity-60 block mb-1">
+                    🫗 {t.staple_oil}
+                  </span>
+                  <p className="text-xs font-medium leading-relaxed">{chart.staplesAdvice?.oil}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Macros Distribution Chart */}
+            <div
+              className={`p-5 md:p-6 rounded-3xl border ${
+                darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+              }`}
+            >
+              <h3 className="font-bold mb-3 text-lg serif italic">{t.macro_dist}</h3>
+              <div className="h-36 mb-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={macroData}
+                      innerRadius={44}
+                      outerRadius={62}
+                      paddingAngle={6}
+                      dataKey="value"
+                    >
+                      {macroData.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} strokeWidth={0} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-3 gap-2 tabular-nums">
+                {macroData.map((m) => (
+                  <div
+                    key={m.name}
+                    className={`p-2.5 rounded-xl text-center ${
+                      darkMode ? 'bg-slate-800' : 'bg-slate-50'
+                    }`}
+                  >
+                    <span className="text-[11px] font-bold block" style={{ color: m.color }}>
+                      {m.name}
+                    </span>
+                    <span className="font-mono font-bold text-sm">{m.value}g</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
         )}
-
-        {/* Daily Salt & Water Quantitative Prescription Card */}
-        <div
-          className={`p-5 md:p-6 rounded-3xl border ${
-            darkMode
-              ? 'bg-emerald-950/15 border-emerald-900/40'
-              : 'bg-emerald-50/60 border-emerald-200 shadow-sm'
-          }`}
-        >
-          <h3 className="font-bold mb-3.5 text-lg md:text-xl serif italic text-emerald-700 dark:text-emerald-400">
-            {isBn ? 'দৈনিক পানি ও লবণের সুনির্দিষ্ট মাত্রা' : t.staples_title}
-          </h3>
-          <div className="space-y-3">
-            <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-emerald-200/60 dark:border-slate-800">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold uppercase tracking-wider opacity-60">
-                  🧂 {t.staple_salt}
-                </span>
-                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                  {chart.staplesAdvice?.saltGramsPerDay || '5g / Day'}
-                </span>
-              </div>
-              <p className="text-xs font-medium leading-relaxed">{chart.staplesAdvice?.salt}</p>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-emerald-200/60 dark:border-slate-800">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold uppercase tracking-wider opacity-60">
-                  💧 {t.staple_water}
-                </span>
-                <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 tabular-nums">
-                  {chart.staplesAdvice?.waterLitersPerDay || '2.5 Liters / Day'}
-                </span>
-              </div>
-              <p className="text-xs font-medium leading-relaxed">{chart.staplesAdvice?.water}</p>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-emerald-200/60 dark:border-slate-800">
-              <span className="text-xs font-bold uppercase tracking-wider opacity-60 block mb-1">
-                🫗 {t.staple_oil}
-              </span>
-              <p className="text-xs font-medium leading-relaxed">{chart.staplesAdvice?.oil}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Macros Distribution Chart */}
-        <div
-          className={`p-5 md:p-6 rounded-3xl border ${
-            darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-          }`}
-        >
-          <h3 className="font-bold mb-3 text-lg serif italic">{t.macro_dist}</h3>
-          <div className="h-36 mb-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={macroData}
-                  innerRadius={44}
-                  outerRadius={62}
-                  paddingAngle={6}
-                  dataKey="value"
-                >
-                  {macroData.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} strokeWidth={0} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-3 gap-2 tabular-nums">
-            {macroData.map((m) => (
-              <div
-                key={m.name}
-                className={`p-2.5 rounded-xl text-center ${
-                  darkMode ? 'bg-slate-800' : 'bg-slate-50'
-                }`}
-              >
-                <span className="text-[11px] font-bold block" style={{ color: m.color }}>
-                  {m.name}
-                </span>
-                <span className="font-mono font-bold text-sm">{m.value}g</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     );
   };
@@ -496,24 +593,39 @@ const DietView: React.FC<Props> = ({
         }`}
       >
         <div className="flex gap-1.5 overflow-x-auto w-full lg:w-auto justify-start lg:justify-center scrollbar-hide">
-          {[1, 2, 3, 4].map((p) => (
-            <button
-              key={p}
-              onClick={() => handlePhaseClick(p)}
-              className={`px-4 py-2 rounded-xl font-bold text-xs md:text-sm transition-all relative whitespace-nowrap shrink-0 ${
-                currentPhase === p
-                  ? darkMode
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-900 text-white shadow-sm'
-                  : darkMode
-                  ? 'text-slate-400 hover:text-slate-200 bg-slate-800/60'
-                  : 'text-slate-600 hover:text-slate-900 bg-slate-100'
-              }`}
-            >
-              {t.phase} {p}
-              {p > 1 && !user?.isPro && <span className="ml-1 text-[10px]">🔒</span>}
-            </button>
-          ))}
+          {[1, 2, 3, 4].map((p) => {
+            const isUnlocked = p === 1 || unlockedPhases.includes(p as Phase);
+            const evalRec = profile.phaseEvaluations?.[p];
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => handlePhaseClick(p)}
+                className={`px-4 py-2 rounded-xl font-bold text-xs md:text-sm transition-all relative whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                  currentPhase === p
+                    ? darkMode
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'bg-slate-900 text-white shadow-sm'
+                    : isUnlocked
+                    ? darkMode
+                      ? 'text-emerald-300 hover:text-white bg-emerald-950/60 border border-emerald-700/50'
+                      : 'text-emerald-800 hover:text-slate-900 bg-emerald-50 border border-emerald-200'
+                    : darkMode
+                    ? 'text-slate-400 hover:text-slate-200 bg-slate-800/60'
+                    : 'text-slate-600 hover:text-slate-900 bg-slate-100'
+                }`}
+              >
+                <span>
+                  {t.phase} {p}
+                </span>
+                {p > 1 && (
+                  <span className="text-[10px]">
+                    {isUnlocked ? (evalRec ? `✓ ${evalRec.scorePercent}%` : '✓') : '📋'}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Interactive 3 vs 4 Meal Switcher & Traffic Light Guide Button */}
@@ -579,6 +691,74 @@ const DietView: React.FC<Props> = ({
           )}
         </div>
       </div>
+
+      {/* Phase Transition Assessment Callout Banner */}
+      <div
+        className={`p-3.5 md:p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+          darkMode
+            ? 'bg-gradient-to-r from-slate-900 via-emerald-950/40 to-teal-950/30 border-emerald-500/30'
+            : 'bg-gradient-to-r from-emerald-50/90 via-teal-50/60 to-white border-emerald-200/80 shadow-xs'
+        }`}
+      >
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <ClipboardCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs sm:text-sm font-extrabold">
+              {currentPhase < 4
+                ? isBn
+                  ? `ফেজ ${currentPhase} শেষ হয়েছে? পরবর্তী ফেজ (ফেজ ${currentPhase + 1})-এ যেতে শারীরিক উন্নতি যাচাই করুন`
+                  : `Finished Phase ${currentPhase}? Verify Improvement to Unlock Phase ${currentPhase + 1} Diet Chart`
+                : isBn
+                ? 'আপনি সর্বোচ্চ ফেজ ৪ (লংজেভিটি ও মেইনটেন্যান্স) ডায়েট চার্টে আছেন'
+                : 'You have unlocked Phase 4 (Longevity & Cellular Optimization)'}
+            </div>
+            <p className="text-[11px] opacity-75">
+              {profile.phaseEvaluations?.[currentPhase]
+                ? isBn
+                  ? `✓ পূর্ববর্তী অ্যাসেসমেন্টের আলোকে আপনার উন্নতির স্কোর: ${profile.phaseEvaluations[currentPhase].scorePercent}%`
+                  : `✓ Verified Improvement Score from baseline assessment: ${profile.phaseEvaluations[currentPhase].scorePercent}%`
+                : isBn
+                ? 'পূর্বে করা অ্যাসেসমেন্ট ফর্মের আলোকে কয়েকটি প্রশ্নের উত্তর দিয়ে উন্নতি নিশ্চিত হলে পরবর্তী ফেজের ডায়েট চার্ট পাবেন।'
+                : 'Answer follow-up questions based on your initial Assessment Form to unlock the next Phase Diet Chart.'}
+            </p>
+          </div>
+        </div>
+
+        {currentPhase < 4 && (
+          <button
+            type="button"
+            onClick={() => setPendingTargetPhase((currentPhase + 1) as Phase)}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold whitespace-nowrap shrink-0 shadow-md transition-all active:scale-95"
+          >
+            {isBn
+              ? `📋 ফেজ ${currentPhase} ➔ ফেজ ${currentPhase + 1} মূল্যায়ন প্রশ্নোত্তর →`
+              : `📋 Take Phase ${currentPhase} ➔ ${currentPhase + 1} Evaluation →`}
+          </button>
+        )}
+      </div>
+
+      {/* Phase Transition Clinical Evaluation Modal */}
+      {pendingTargetPhase !== null && (
+        <PhaseTransitionModal
+          isOpen={true}
+          fromPhase={currentPhase}
+          targetPhase={pendingTargetPhase}
+          profile={profile}
+          lang={lang}
+          darkMode={darkMode}
+          onClose={() => setPendingTargetPhase(null)}
+          onApprovedTransition={(approvedPhase, updatedProf) => {
+            onUpdateProfile(updatedProf);
+            setPendingTargetPhase(null);
+            setCurrentWeek(1);
+            onPhaseChange(approvedPhase);
+            fetchChart(updatedProf, undefined, 1, approvedPhase);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-28 gap-4">
@@ -797,10 +977,38 @@ const DietView: React.FC<Props> = ({
                 );
               })}
             </div>
+
+            {/* Free vs Premium Access Notice Strip */}
+            {!isPremiumUser && (
+              <div
+                className={`mt-3 p-3.5 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                  darkMode
+                    ? 'bg-amber-950/30 border-amber-500/30 text-amber-200'
+                    : 'bg-amber-50/90 border-amber-200 text-amber-950'
+                }`}
+              >
+                <div className="flex items-start sm:items-center gap-2.5 text-xs">
+                  <Lock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
+                  <span>
+                    {isBn
+                      ? 'ফ্রি ইউজার প্রিভিউ: আপনি প্রথম ২ দিনের ডায়েট চার্ট, ১টি সাপ্লিমেন্ট এবং অন্যান্য আউটপুটের আংশিক অংশ দেখতে পাচ্ছেন। বাকি ৫ দিনের চার্ট, সম্পূর্ণ সাপ্লিমেন্ট লিস্ট ও পূর্ণাঙ্গ প্রোটোকল প্রিমিয়াম ইউজারদের জন্য ঢাকা রয়েছে।'
+                      : 'Free Preview Mode: Viewing first 2 days of Diet Chart, 1 supplement, and partial outputs. Remaining 5 days, full supplement list, and complete protocols are covered for Premium users.'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onShowPaywall}
+                  className="px-3.5 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 shadow-sm shrink-0 flex items-center gap-1.5"
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>{isBn ? 'প্রিমিয়াম নিন' : 'Go Premium'}</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ================================================================= */}
-          {/* TAB 1: MEAL PLAN (ডায়েট চার্ট)                                    */}
+          {/* TAB 1: MEAL PLAN (ডায়েট চার্ট — ২ দিন ফ্রি, বাকি দিন প্রিমিয়াম)   */}
           {/* ================================================================= */}
           {activeSubTab === 'meals' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300">
@@ -809,13 +1017,16 @@ const DietView: React.FC<Props> = ({
                 {/* BD FCT Traffic Light Selected Foods Summary Strip */}
                 {(() => {
                   const fullGuide = gemini.getDefaultTrafficLightGuide(profile);
+                  const guideItems = Array.isArray(fullGuide)
+                    ? fullGuide
+                    : fullGuide?.items || [];
                   const selectedSet = new Set(profile.selectedFoods || []);
-                  const selectedItems = fullGuide.filter(
+                  const selectedItems = guideItems.filter(
                     (item) => selectedSet.has(item.id) && item.zone !== 'red'
                   );
-                  const greenTotal = fullGuide.filter((i) => i.zone === 'green').length;
-                  const yellowTotal = fullGuide.filter((i) => i.zone === 'yellow').length;
-                  const redTotal = fullGuide.filter((i) => i.zone === 'red').length;
+                  const greenTotal = guideItems.filter((i) => i.zone === 'green').length;
+                  const yellowTotal = guideItems.filter((i) => i.zone === 'yellow').length;
+                  const redTotal = guideItems.filter((i) => i.zone === 'red').length;
 
                   return (
                     <div
@@ -830,8 +1041,8 @@ const DietView: React.FC<Props> = ({
                           <span className="text-emerald-700 dark:text-emerald-300">
                             🚦{' '}
                             {isBn
-                              ? `বিডি ফুড কম্পোজিশন ট্রাফিক লাইট গাইড (${fullGuide.length}টি খাবার)`
-                              : `BD FCT Traffic Light Guide (${fullGuide.length} Foods)`}
+                              ? `বিডি ফুড কম্পোজিশন ট্রাফিক লাইট গাইড (${guideItems.length}টি খাবার)`
+                              : `BD FCT Traffic Light Guide (${guideItems.length} Foods)`}
                           </span>
                           <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-mono text-[11px]">
                             🟢 {greenTotal} · 🟡 {yellowTotal} · 🔴 {redTotal}
@@ -888,11 +1099,18 @@ const DietView: React.FC<Props> = ({
                   {/* Day Selector Header */}
                   <div className="px-4 md:px-6 py-4 border-b border-inherit flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                      <h3 className="font-bold text-lg md:text-xl serif italic">
-                        {isBn
-                          ? `দৈনিক বাঙালি ডায়েট মেনু (${activeMealFreq} বেলা)`
-                          : `${t.daily_schedule} (${activeMealFreq} Meals)`}
-                      </h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-lg md:text-xl serif italic">
+                          {isBn
+                            ? `দৈনিক বাঙালি ডায়েট মেনু (${activeMealFreq} বেলা)`
+                            : `${t.daily_schedule} (${activeMealFreq} Meals)`}
+                        </h3>
+                        {!isPremiumUser && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                            {isBn ? '১ম ও ২য় দিন ফ্রি · ৩য়-৭ম দিন প্রিমিয়াম' : 'Days 1-2 Free · Days 3-7 Premium'}
+                          </span>
+                        )}
+                      </div>
                       {chart.dinnerCarbStrategy && (
                         <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-0.5">
                           {chart.dinnerCarbStrategy}
@@ -900,92 +1118,195 @@ const DietView: React.FC<Props> = ({
                       )}
                     </div>
                     <div className="flex gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-hide">
-                      {chart.weeklySchedule?.map((day, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setCurrentDayIndex(idx)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                            currentDayIndex === idx
-                              ? 'bg-emerald-600 text-white shadow-sm'
-                              : darkMode
-                              ? 'bg-slate-800 text-slate-400 hover:text-white'
-                              : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          {day.day}
-                        </button>
-                      ))}
+                      {chart.weeklySchedule?.map((day, idx) => {
+                        const isDayLocked = !isPremiumUser && idx >= 2;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setCurrentDayIndex(idx)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1 ${
+                              currentDayIndex === idx
+                                ? isDayLocked
+                                  ? 'bg-amber-500 text-slate-950 shadow-sm'
+                                  : 'bg-emerald-600 text-white shadow-sm'
+                                : isDayLocked
+                                ? darkMode
+                                  ? 'bg-slate-800/80 text-amber-400/90 border border-amber-500/30 hover:bg-slate-800'
+                                  : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                                : darkMode
+                                ? 'bg-slate-800 text-slate-300 hover:text-white'
+                                : 'bg-slate-100 text-slate-700 hover:text-slate-900'
+                            }`}
+                          >
+                            {isDayLocked && <span className="text-[11px]">🔒</span>}
+                            <span>{day.day}</span>
+                            {!isPremiumUser && idx < 2 && (
+                              <span
+                                className={`text-[9px] px-1 rounded ${
+                                  currentDayIndex === idx
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                }`}
+                              >
+                                {isBn ? 'ফ্রি' : 'Free'}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Meals for Selected Day */}
+                  {/* Meals for Selected Day (Unlocked for Day 1 & Day 2, Covered for Days 3–7 if not Premium) */}
                   <div className="p-4 md:p-6 space-y-4">
-                    {chart.weeklySchedule?.[currentDayIndex]?.meals?.map((meal, idx) => (
-                      <div
-                        key={idx}
-                        className={`p-4 md:p-5 rounded-2xl border transition-all ${
-                          darkMode
-                            ? 'bg-slate-800/40 border-slate-800 hover:border-slate-700'
-                            : 'bg-slate-50/70 border-slate-200/80 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
-                          <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                            <span>{meal.time}</span>
-                            {meal.mealSlot && (
-                              <>
-                                <span aria-hidden="true">·</span>
-                                <span>{meal.mealSlot}</span>
-                              </>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
-                            <span className="font-semibold opacity-75">{meal.quantity}</span>
-                            {meal.calories && (
-                              <>
-                                <span aria-hidden="true">·</span>
-                                <span className="font-bold text-amber-600 dark:text-amber-400">
-                                  {meal.calories}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
+                    {!isPremiumUser && currentDayIndex >= 2 ? (
+                      renderCoveredPremiumSection(
+                        `${chart.weeklySchedule?.[currentDayIndex]?.day || '৩য়-৭ম দিন'}-এর সম্পূর্ণ ডায়েট চার্ট শুধুমাত্র প্রিমিয়াম ইউজারদের জন্য`,
+                        `${chart.weeklySchedule?.[currentDayIndex]?.day || 'Days 3–7'} Diet Chart is Reserved for Premium Users`,
+                        'ফ্রি ইউজাররা শুধুমাত্র ১ম ও ২য় দিনের ডায়েট চার্ট দেখতে পারবেন। ৩য় থেকে ৭ম দিনের সম্পূর্ণ ডায়েট চার্ট আনলক করতে প্রিমিয়াম মেম্বারশিপ নিন।',
+                        'Free users can view the first 2 days of the Diet Chart. Upgrade to Premium to unlock Days 3 to 7.',
+                        <div className="space-y-4">
+                          {chart.weeklySchedule?.[currentDayIndex]?.meals?.map((meal, idx) => (
+                            <div
+                              key={idx}
+                              className={`p-4 md:p-5 rounded-2xl border ${
+                                darkMode
+                                  ? 'bg-slate-800/40 border-slate-800'
+                                  : 'bg-slate-50/70 border-slate-200/80'
+                              }`}
+                            >
+                              <div className="flex justify-between text-xs font-bold text-emerald-600">
+                                <span>{meal.time} · {meal.mealSlot}</span>
+                                <span>{meal.quantity} · {meal.calories}</span>
+                              </div>
+                              <h4 className="font-bold text-base md:text-lg mt-2">{meal.mealName}</h4>
+                              <p className="text-xs md:text-sm opacity-85 mt-1">{meal.description}</p>
+                            </div>
+                          ))}
+                        </div>,
+                        {
+                          labelBn: '← ১ম ও ২য় দিনের ফ্রি চার্ট দেখুন',
+                          labelEn: '← View Free Day 1 & Day 2 Chart',
+                          onClick: () => setCurrentDayIndex(0),
+                        }
+                      )
+                    ) : (
+                      <>
+                        {chart.weeklySchedule?.[currentDayIndex]?.meals?.map((meal, idx) => (
+                          <div
+                            key={idx}
+                            className={`p-4 md:p-5 rounded-2xl border transition-all ${
+                              darkMode
+                                ? 'bg-slate-800/40 border-slate-800 hover:border-slate-700'
+                                : 'bg-slate-50/70 border-slate-200/80 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
+                              <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                <span>{meal.time}</span>
+                                {meal.mealSlot && (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span>{meal.mealSlot}</span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
+                                <span className="font-semibold opacity-75">{meal.quantity}</span>
+                                {meal.calories && (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span className="font-bold text-amber-600 dark:text-amber-400">
+                                      {meal.calories}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
 
-                        <h4 className="font-bold text-base md:text-lg mt-2.5">{meal.mealName}</h4>
-                        <p className="text-xs md:text-sm opacity-85 leading-relaxed mt-1.5">
-                          {meal.description}
-                        </p>
+                            <h4 className="font-bold text-base md:text-lg mt-2.5">{meal.mealName}</h4>
+                            <p className="text-xs md:text-sm opacity-85 leading-relaxed mt-1.5">
+                              {meal.description}
+                            </p>
 
-                        {meal.macroBreakdown && (
-                          <div className="mt-2.5 pt-2.5 border-t border-slate-200/50 dark:border-slate-700/50 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] opacity-75 tabular-nums">
-                            <span>
-                              <strong>{isBn ? 'প্রোটিন:' : 'Protein:'}</strong>{' '}
-                              {meal.macroBreakdown.protein}
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <span>
-                              <strong>{isBn ? 'শর্করা:' : 'Carbs:'}</strong>{' '}
-                              {meal.macroBreakdown.carbs}
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <span>
-                              <strong>{isBn ? 'ফ্যাট:' : 'Fats:'}</strong>{' '}
-                              {meal.macroBreakdown.fats}
-                            </span>
-                            {meal.macroBreakdown.carbSourceType && (
-                              <>
-                                <span aria-hidden="true">·</span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                                  {meal.macroBreakdown.carbSourceType}
+                            {meal.macroBreakdown && (
+                              <div className="mt-2.5 pt-2.5 border-t border-slate-200/50 dark:border-slate-700/50 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] opacity-75 tabular-nums">
+                                <span>
+                                  <strong>{isBn ? 'প্রোটিন:' : 'Protein:'}</strong>{' '}
+                                  {meal.macroBreakdown.protein}
                                 </span>
-                              </>
+                                <span aria-hidden="true">·</span>
+                                <span>
+                                  <strong>{isBn ? 'শর্করা:' : 'Carbs:'}</strong>{' '}
+                                  {meal.macroBreakdown.carbs}
+                                </span>
+                                <span aria-hidden="true">·</span>
+                                <span>
+                                  <strong>{isBn ? 'ফ্যাট:' : 'Fats:'}</strong>{' '}
+                                  {meal.macroBreakdown.fats}
+                                </span>
+                                {meal.macroBreakdown.carbSourceType && (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                      {meal.macroBreakdown.carbSourceType}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
-                    ))}
+                        ))}
+
+                        {/* Covered Preview of Remaining Days (Days 3–7) for Free Users when viewing Day 1 or Day 2 */}
+                        {!isPremiumUser &&
+                          chart.weeklySchedule &&
+                          chart.weeklySchedule.length > 2 && (
+                            <div className="pt-2">
+                              {renderCoveredPremiumSection(
+                                '৩য় থেকে ৭ম দিনের ডায়েট চার্ট প্রিমিয়াম ইউজারদের জন্য ঢাকা রয়েছে',
+                                'Days 3 to 7 Diet Chart is Covered for Premium Users',
+                                'আপনি ১ম ও ২য় দিনের ডায়েট চার্ট দেখছেন। বাকি ৫ দিনের (৩য়–৭ম দিন) সম্পূর্ণ সাপ্তাহিক ডায়েট চার্ট দেখতে প্রিমিয়াম মেম্বারশিপ আনলক করুন।',
+                                'You are viewing Day 1 & Day 2. Upgrade to Premium to unlock the remaining 5 days (Days 3–7) of your weekly Diet Chart.',
+                                <div className="p-4 space-y-3">
+                                  {chart.weeklySchedule.slice(2, 4).map((lockedDay, dIdx) => (
+                                    <div
+                                      key={dIdx}
+                                      className={`p-4 rounded-2xl border ${
+                                        darkMode
+                                          ? 'bg-slate-800/50 border-slate-700'
+                                          : 'bg-slate-50 border-slate-200'
+                                      }`}
+                                    >
+                                      <div className="text-xs font-extrabold text-amber-500 mb-1">
+                                        {lockedDay.day}
+                                      </div>
+                                      <div className="text-sm font-bold">
+                                        {lockedDay.meals?.[0]?.mealName || 'Clinical Meal Plan'}
+                                      </div>
+                                      <p className="text-xs opacity-75 mt-0.5">
+                                        {lockedDay.meals?.[0]?.description}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>,
+                                currentDayIndex === 0
+                                  ? {
+                                      labelBn: '২য় দিনের ফ্রি চার্ট দেখুন →',
+                                      labelEn: 'View Free Day 2 Chart →',
+                                      onClick: () => setCurrentDayIndex(1),
+                                    }
+                                  : {
+                                      labelBn: '← ১ম দিনের ফ্রি চার্ট দেখুন',
+                                      labelEn: '← View Free Day 1 Chart',
+                                      onClick: () => setCurrentDayIndex(0),
+                                    }
+                              )}
+                            </div>
+                          )}
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -1016,7 +1337,7 @@ const DietView: React.FC<Props> = ({
                       {isBn ? 'দৈনিক পানি' : 'Daily Water'}
                     </span>
                     <span className="text-sm font-bold text-blue-500 font-mono">
-                      {chart.staplesAdvice?.waterLitersPerDay || '2.5 L'}
+                      {isPremiumUser ? chart.staplesAdvice?.waterLitersPerDay || '2.5 L' : '🔒 প্রিমিয়াম'}
                     </span>
                   </button>
                   <button
@@ -1030,7 +1351,7 @@ const DietView: React.FC<Props> = ({
                       {isBn ? 'পিংক সল্ট' : 'Pink Salt'}
                     </span>
                     <span className="text-sm font-bold text-emerald-500 font-mono">
-                      {chart.staplesAdvice?.saltGramsPerDay || '5g'}
+                      {isPremiumUser ? chart.staplesAdvice?.saltGramsPerDay || '5g' : '🔒 প্রিমিয়াম'}
                     </span>
                   </button>
                 </div>
@@ -1055,7 +1376,7 @@ const DietView: React.FC<Props> = ({
           {/* ================================================================= */}
           {activeSubTab === 'exchange_detox' && (
             <div className="space-y-6 animate-in fade-in duration-300">
-              {/* Detox Water & Hypoacidity Pre-Meal Shot Protocol */}
+              {/* Detox Water & Hypoacidity Pre-Meal Shot Protocol (1st shown, rest covered for non-premium) */}
               {chart.detoxWaterProtocol && chart.detoxWaterProtocol.length > 0 && (
                 <div
                   className={`p-5 md:p-7 rounded-3xl border ${
@@ -1064,59 +1385,134 @@ const DietView: React.FC<Props> = ({
                       : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
-                  <div className="mb-4">
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                      {isBn
-                        ? 'সকাল, ভারী খাবারের পূর্বে (হাইপোঅ্যাসিডিটি) ও রাতের পানীয়'
-                        : 'Targeted Digestive & Metabolic Infusions'}
-                    </span>
-                    <h3 className="text-xl md:text-2xl font-bold serif italic mt-0.5">
-                      {isBn
-                        ? 'ডিটক্স ওয়াটার ও হাইপোঅ্যাসিডিটি ডাইজেস্টিভ শট প্রোটোকল'
-                        : 'Detox Water & Pre-Meal Hypoacidity Shot Protocol'}
-                    </h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <div>
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                        {isBn
+                          ? 'সকাল, ভারী খাবারের পূর্বে (হাইপোঅ্যাসিডিটি) ও রাতের পানীয়'
+                          : 'Targeted Digestive & Metabolic Infusions'}
+                      </span>
+                      <h3 className="text-xl md:text-2xl font-bold serif italic mt-0.5">
+                        {isBn
+                          ? 'ডিটক্স ওয়াটার ও হাইপোঅ্যাসিডিটি ডাইজেস্টিভ শট প্রোটোকল'
+                          : 'Detox Water & Pre-Meal Hypoacidity Shot Protocol'}
+                      </h3>
+                    </div>
+                    {!isPremiumUser && (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                        {isBn ? '১টি উন্মুক্ত · বাকিগুলো ঢাকা' : '1 Shown · Rest Covered'}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {chart.detoxWaterProtocol.map((dw, i) => (
-                      <div
-                        key={i}
-                        className={`p-4 md:p-5 rounded-2xl border flex flex-col justify-between gap-3 ${
-                          dw.isHypoaciditySpecific
-                            ? darkMode
-                              ? 'bg-amber-950/25 border-amber-800/60'
-                              : 'bg-amber-50/80 border-amber-200'
-                            : darkMode
-                            ? 'bg-slate-800/50 border-slate-700'
-                            : 'bg-slate-50 border-slate-200'
-                        }`}
-                      >
-                        <div>
-                          <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-1">
-                            {dw.timing}
+                  {isPremiumUser ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {chart.detoxWaterProtocol.map((dw, i) => (
+                        <div
+                          key={i}
+                          className={`p-4 md:p-5 rounded-2xl border flex flex-col justify-between gap-3 ${
+                            dw.isHypoaciditySpecific
+                              ? darkMode
+                                ? 'bg-amber-950/25 border-amber-800/60'
+                                : 'bg-amber-50/80 border-amber-200'
+                              : darkMode
+                              ? 'bg-slate-800/50 border-slate-700'
+                              : 'bg-slate-50 border-slate-200'
+                          }`}
+                        >
+                          <div>
+                            <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-1">
+                              {dw.timing}
+                            </div>
+                            <h4 className="font-bold text-sm md:text-base leading-snug">{dw.name}</h4>
+                            <div className="mt-2.5 text-xs space-y-1 opacity-85">
+                              <div className="font-semibold">
+                                {isBn ? 'উপকরণ:' : 'Ingredients:'}{' '}
+                                <span className="font-normal">{dw.ingredients?.join(', ')}</span>
+                              </div>
+                              <div className="font-semibold pt-1">
+                                {isBn ? 'প্রস্তুত প্রণালী:' : 'Preparation:'}{' '}
+                                <span className="font-normal">{dw.preparation}</span>
+                              </div>
+                            </div>
                           </div>
-                          <h4 className="font-bold text-sm md:text-base leading-snug">{dw.name}</h4>
-                          <div className="mt-2.5 text-xs space-y-1 opacity-85">
-                            <div className="font-semibold">
-                              {isBn ? 'উপকরণ:' : 'Ingredients:'}{' '}
-                              <span className="font-normal">{dw.ingredients?.join(', ')}</span>
-                            </div>
-                            <div className="font-semibold pt-1">
-                              {isBn ? 'প্রস্তুত প্রণালী:' : 'Preparation:'}{' '}
-                              <span className="font-normal">{dw.preparation}</span>
-                            </div>
+                          <div className="pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 text-xs italic opacity-80">
+                            {dw.clinicalBenefit}
                           </div>
                         </div>
-                        <div className="pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 text-xs italic opacity-80">
-                          {dw.clinicalBenefit}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* First Detox Water clearly visible */}
+                      {chart.detoxWaterProtocol.slice(0, 1).map((dw, i) => (
+                        <div
+                          key={i}
+                          className={`p-4 md:p-5 rounded-2xl border flex flex-col justify-between gap-3 ${
+                            darkMode
+                              ? 'bg-slate-800/50 border-emerald-500/30'
+                              : 'bg-emerald-50/40 border-emerald-200'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                {dw.timing}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                                {isBn ? 'ফ্রি প্রিভিউ' : 'Free Preview'}
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-sm md:text-base leading-snug">{dw.name}</h4>
+                            <div className="mt-2.5 text-xs space-y-1 opacity-85">
+                              <div className="font-semibold">
+                                {isBn ? 'উপকরণ:' : 'Ingredients:'}{' '}
+                                <span className="font-normal">{dw.ingredients?.join(', ')}</span>
+                              </div>
+                              <div className="font-semibold pt-1">
+                                {isBn ? 'প্রস্তুত প্রণালী:' : 'Preparation:'}{' '}
+                                <span className="font-normal">{dw.preparation}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 text-xs italic opacity-80">
+                            {dw.clinicalBenefit}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+
+                      {/* Remaining Detox Water protocols covered */}
+                      {chart.detoxWaterProtocol.length > 1 &&
+                        renderCoveredPremiumSection(
+                          'বাকি ডিটক্স ওয়াটার ও ডাইজেস্টিভ শট প্রোটোকল প্রিমিয়াম ইউজারদের জন্য ঢাকা রয়েছে',
+                          'Remaining Detox Water & Pre-Meal Digestive Shots are Covered for Premium Users',
+                          'হাইপোঅ্যাসিডিটি শট ও রাতের মেটাবলিক ইনফিউশনসহ সম্পূর্ণ পানীয় প্রোটোকল দেখতে প্রিমিয়াম মেম্বারশিপ নিন।',
+                          'Upgrade to Premium to unlock all targeted digestive shots and nighttime metabolic infusions.',
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                            {chart.detoxWaterProtocol.slice(1).map((dw, i) => (
+                              <div
+                                key={i}
+                                className={`p-4 rounded-2xl border ${
+                                  darkMode
+                                    ? 'bg-slate-800/50 border-slate-700'
+                                    : 'bg-slate-50 border-slate-200'
+                                }`}
+                              >
+                                <div className="text-xs font-bold text-emerald-600 mb-1">
+                                  {dw.timing}
+                                </div>
+                                <h4 className="font-bold text-sm">{dw.name}</h4>
+                                <p className="text-xs opacity-80 mt-2">{dw.preparation}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Clinical Food Exchange Table */}
+              {/* Clinical Food Exchange Table (1st row shown, remaining rows covered for non-premium) */}
               {chart.foodExchangeTable && chart.foodExchangeTable.length > 0 && (
                 <div
                   className={`p-5 md:p-7 rounded-3xl border ${
@@ -1125,20 +1521,30 @@ const DietView: React.FC<Props> = ({
                       : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
-                  <div className="mb-4">
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                      {isBn ? 'খাবারের বৈচিত্র্য ও বিকল্প তালিকা' : 'Clinical Dietary Substitutions'}
-                    </span>
-                    <h3 className="text-xl md:text-2xl font-bold serif italic mt-0.5">
-                      {isBn
-                        ? 'ক্লিনিক্যাল ফুড এক্সচেঞ্জ টেবিল (কোন খাবারের পরিবর্তে কোন খাবার খাবেন)'
-                        : 'Clinical Traffic Light Food Exchange Table'}
-                    </h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <div>
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                        {isBn ? 'খাবারের বৈচিত্র্য ও বিকল্প তালিকা' : 'Clinical Dietary Substitutions'}
+                      </span>
+                      <h3 className="text-xl md:text-2xl font-bold serif italic mt-0.5">
+                        {isBn
+                          ? 'ক্লিনিক্যাল ফুড এক্সচেঞ্জ টেবিল (কোন খাবারের পরিবর্তে কোন খাবার খাবেন)'
+                          : 'Clinical Traffic Light Food Exchange Table'}
+                      </h3>
+                    </div>
+                    {!isPremiumUser && (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                        {isBn ? 'আংশিক প্রিভিউ (১টি ক্যাটাগরি উন্মুক্ত)' : 'Partial Preview (1 Category Shown)'}
+                      </span>
+                    )}
                   </div>
 
-                  {/* Mobile Card View + Desktop Table View */}
+                  {/* Visible Food Exchange Rows (All for Premium, First 1 for Free) */}
                   <div className="grid grid-cols-1 gap-3 md:hidden">
-                    {chart.foodExchangeTable.map((row, i) => (
+                    {(isPremiumUser
+                      ? chart.foodExchangeTable
+                      : chart.foodExchangeTable.slice(0, 1)
+                    ).map((row, i) => (
                       <div
                         key={i}
                         className={`p-4 rounded-2xl border space-y-2 ${
@@ -1191,7 +1597,10 @@ const DietView: React.FC<Props> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800">
-                        {chart.foodExchangeTable.map((row, i) => (
+                        {(isPremiumUser
+                          ? chart.foodExchangeTable
+                          : chart.foodExchangeTable.slice(0, 1)
+                        ).map((row, i) => (
                           <tr key={i} className="align-top">
                             <td className="py-3.5 pr-4">
                               <div className="font-bold">{row.primaryFood}</div>
@@ -1223,13 +1632,45 @@ const DietView: React.FC<Props> = ({
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Covered remaining Food Exchange rows for non-premium users */}
+                  {!isPremiumUser && chart.foodExchangeTable.length > 1 && (
+                    <div className="mt-4">
+                      {renderCoveredPremiumSection(
+                        'বাকি ফুড এক্সচেঞ্জ টেবিল প্রিমিয়াম ইউজারদের জন্য ঢাকা রয়েছে',
+                        'Remaining Food Exchange Categories are Covered for Premium Users',
+                        'মাছ, মাংস, ডাল, সবজি ও ফ্যাট সোর্সের সম্পূর্ণ বিকল্প তালিকা দেখতে প্রিমিয়াম মেম্বারশিপ আনলক করুন।',
+                        'Unlock Premium to access the complete clinical food exchange substitutions across all food groups.',
+                        <div className="p-4 space-y-3">
+                          {chart.foodExchangeTable.slice(1).map((row, i) => (
+                            <div
+                              key={i}
+                              className={`p-3.5 rounded-2xl border flex justify-between items-center ${
+                                darkMode
+                                  ? 'bg-slate-800/50 border-slate-700'
+                                  : 'bg-slate-50 border-slate-200'
+                              }`}
+                            >
+                              <div>
+                                <div className="font-bold text-sm">{row.primaryFood}</div>
+                                <div className="text-xs opacity-75">
+                                  {row.greenSubstitutes?.join(' · ')}
+                                </div>
+                              </div>
+                              <span className="text-xs font-mono">{row.primaryPortion}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
           {/* ================================================================= */}
-          {/* TAB 4: CLINICAL SUPPLEMENTATION PROTOCOL                          */}
+          {/* TAB 4: CLINICAL SUPPLEMENTATION PROTOCOL (১টি ফ্রি, বাকি ঢাকা)    */}
           {/* ================================================================= */}
           {activeSubTab === 'supplements' && (
             <div className="space-y-6 animate-in fade-in duration-300">
@@ -1267,18 +1708,28 @@ const DietView: React.FC<Props> = ({
                           : 'bg-amber-50/80 border-amber-200'
                       }`}
                     >
-                      <div className="flex items-center gap-2 mb-2.5">
-                        <span className="text-lg">💊</span>
-                        <h3
-                          className={`font-bold text-sm ${
-                            darkMode ? 'text-amber-400' : 'text-amber-800'
-                          }`}
-                        >
-                          {t.med_guardian_title}
-                        </h3>
+                      <div className="flex items-center justify-between gap-2 mb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">💊</span>
+                          <h3
+                            className={`font-bold text-sm ${
+                              darkMode ? 'text-amber-400' : 'text-amber-800'
+                            }`}
+                          >
+                            {t.med_guardian_title}
+                          </h3>
+                        </div>
+                        {!isPremiumUser && chart.drugFoodInteractions.length > 1 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                            {isBn ? 'আংশিক প্রিভিউ' : 'Partial Preview'}
+                          </span>
+                        )}
                       </div>
                       <div className="space-y-2">
-                        {chart.drugFoodInteractions.map((warn, i) => (
+                        {(isPremiumUser
+                          ? chart.drugFoodInteractions
+                          : chart.drugFoodInteractions.slice(0, 1)
+                        ).map((warn, i) => (
                           <div
                             key={i}
                             className={`p-3 rounded-xl border text-xs ${
@@ -1293,6 +1744,20 @@ const DietView: React.FC<Props> = ({
                             {warn.guidance}
                           </div>
                         ))}
+                        {!isPremiumUser && chart.drugFoodInteractions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={onShowPaywall}
+                            className="w-full p-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300 text-xs font-extrabold flex items-center justify-center gap-1.5"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>
+                              {isBn
+                                ? `+ আরও ${chart.drugFoodInteractions.length - 1}টি ওষুধ-খাবার ইন্টারেকশন আনলক করুন`
+                                : `+ Unlock ${chart.drugFoodInteractions.length - 1} more Drug-Food Interactions`}
+                            </span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1304,60 +1769,189 @@ const DietView: React.FC<Props> = ({
                   darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
-                <div className="mb-4">
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    {isBn
-                      ? 'রোগীর কন্ডিশন ও ওষুধ অনুযায়ী ক্লিনিক্যাল সাপ্লিমেন্টেশন'
-                      : 'Condition & Medication-Aligned Nutraceuticals'}
-                  </span>
-                  <h3 className="text-xl md:text-2xl font-bold italic serif mt-0.5">
-                    {isBn
-                      ? 'সাপ্লিমেন্টেশন প্রোটোকল (Supplementation Protocol)'
-                      : t.aggressive_supp}
-                  </h3>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <div>
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      {isBn
+                        ? 'রোগীর কন্ডিশন ও ওষুধ অনুযায়ী ক্লিনিক্যাল সাপ্লিমেন্টেশন'
+                        : 'Condition & Medication-Aligned Nutraceuticals'}
+                    </span>
+                    <h3 className="text-xl md:text-2xl font-bold italic serif mt-0.5">
+                      {isBn
+                        ? 'সাপ্লিমেন্টেশন প্রোটোকল (Supplementation Protocol)'
+                        : t.aggressive_supp}
+                    </h3>
+                  </div>
+                  {!isPremiumUser && (
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                      {isBn
+                        ? '১টি সাপ্লিমেন্ট উন্মুক্ত · বাকি তালিকা প্রিমিয়াম ইউজারদের জন্য ঢাকা'
+                        : '1 Supplement Shown · Remaining List Covered for Premium'}
+                    </span>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {chart.supplements?.map((supp, i) => (
-                    <div
-                      key={i}
-                      className={`p-5 rounded-2xl border flex flex-col justify-between gap-3 ${
-                        darkMode
-                          ? 'bg-slate-800/50 border-slate-700'
-                          : 'bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex justify-between items-start gap-2 mb-1.5">
-                          <div>
-                            <h4 className="font-bold text-sm md:text-base text-emerald-600 dark:text-emerald-400">
-                              {supp.name}
-                            </h4>
-                            <div className="text-xs font-semibold opacity-75 mt-0.5">
-                              {supp.dosage} {supp.timing ? `· ${supp.timing}` : ''}
+                {(() => {
+                  const allSupps = chart.supplements && chart.supplements.length > 0 ? chart.supplements : [];
+                  const firstSupp = allSupps[0];
+                  const remainingSupps =
+                    allSupps.length > 1
+                      ? allSupps.slice(1)
+                      : [
+                          {
+                            name: isBn ? 'ম্যাগনেসিয়াম গ্লাইসিনেট (Magnesium Glycinate)' : 'Magnesium Glycinate',
+                            dosage: '400 mg',
+                            timing: isBn ? 'রাতে ঘুমানোর ৩০ মিনিট আগে' : '30 mins before bedtime',
+                            rationale: isBn
+                              ? 'ইনসুলিন সেন্সিটিভিটি বৃদ্ধি, স্নায়বিক প্রশান্তি ও গভীর ঘুমের জন্য।'
+                              : 'Supports cellular insulin sensitivity, nervous system calm, and restorative sleep.',
+                            phaseRole: 'Metabolic & Cellular Repair',
+                            tags: ['Sleep', 'Metabolic'],
+                          },
+                          {
+                            name: isBn ? 'ওমেগা-৩ ইপিএ/ডিএইচএ (Omega-3 EPA/DHA)' : 'Omega-3 EPA/DHA',
+                            dosage: '1000 mg',
+                            timing: isBn ? 'দুপুরের খাবারের সাথে' : 'With Lunch',
+                            rationale: isBn
+                              ? 'সিস্টেমিক ইনফ্লামেশন ও ট্রাইগ্লিসারাইড কমাতে সহায়ক।'
+                              : 'Reduces systemic inflammation and optimizes lipid profile.',
+                            phaseRole: 'Anti-Inflammatory',
+                            tags: ['Lipids', 'Heart'],
+                          },
+                        ];
+
+                  if (isPremiumUser) {
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {allSupps.map((supp, i) => (
+                          <div
+                            key={i}
+                            className={`p-5 rounded-2xl border flex flex-col justify-between gap-3 ${
+                              darkMode
+                                ? 'bg-slate-800/50 border-slate-700'
+                                : 'bg-slate-50 border-slate-200'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex justify-between items-start gap-2 mb-1.5">
+                                <div>
+                                  <h4 className="font-bold text-sm md:text-base text-emerald-600 dark:text-emerald-400">
+                                    {supp.name}
+                                  </h4>
+                                  <div className="text-xs font-semibold opacity-75 mt-0.5">
+                                    {supp.dosage} {supp.timing ? `· ${supp.timing}` : ''}
+                                  </div>
+                                </div>
+                                <span className="text-lg">💊</span>
+                              </div>
+                              <p className="text-xs opacity-80 leading-relaxed mt-2">{supp.rationale}</p>
+                              {supp.medicationSynergy && (
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2 font-medium">
+                                  ⚕️ {supp.medicationSynergy}
+                                </p>
+                              )}
+                            </div>
+                            <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700 text-[11px] opacity-60">
+                              {supp.phaseRole} {supp.tags?.length ? `· ${supp.tags.join(' · ')}` : ''}
                             </div>
                           </div>
-                          <span className="text-lg">💊</span>
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-5">
+                      {/* 1st Supplement Visible for Everyone */}
+                      {firstSupp && (
+                        <div
+                          className={`p-5 rounded-2xl border-2 flex flex-col justify-between gap-3 ${
+                            darkMode
+                              ? 'bg-slate-800/70 border-emerald-500/40'
+                              : 'bg-emerald-50/50 border-emerald-300'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex justify-between items-start gap-2 mb-1.5">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-600 text-white">
+                                    {isBn ? 'ফ্রি সাপ্লিমেন্ট #১' : 'Free Supplement #1'}
+                                  </span>
+                                  <h4 className="font-bold text-sm md:text-base text-emerald-600 dark:text-emerald-400">
+                                    {firstSupp.name}
+                                  </h4>
+                                </div>
+                                <div className="text-xs font-semibold opacity-80 mt-1">
+                                  {firstSupp.dosage} {firstSupp.timing ? `· ${firstSupp.timing}` : ''}
+                                </div>
+                              </div>
+                              <span className="text-xl">💊</span>
+                            </div>
+                            <p className="text-xs opacity-85 leading-relaxed mt-2">
+                              {firstSupp.rationale}
+                            </p>
+                            {firstSupp.medicationSynergy && (
+                              <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2 font-medium">
+                                ⚕️ {firstSupp.medicationSynergy}
+                              </p>
+                            )}
+                          </div>
+                          <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700 text-[11px] opacity-70">
+                            {firstSupp.phaseRole}{' '}
+                            {firstSupp.tags?.length ? `· ${firstSupp.tags.join(' · ')}` : ''}
+                          </div>
                         </div>
-                        <p className="text-xs opacity-80 leading-relaxed mt-2">{supp.rationale}</p>
-                        {supp.medicationSynergy && (
-                          <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2 font-medium">
-                            ⚕️ {supp.medicationSynergy}
-                          </p>
-                        )}
-                      </div>
-                      <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700 text-[11px] opacity-60">
-                        {supp.phaseRole} {supp.tags?.length ? `· ${supp.tags.join(' · ')}` : ''}
-                      </div>
+                      )}
+
+                      {/* Remaining Supplements Covered/Blurred */}
+                      {renderCoveredPremiumSection(
+                        `বাকি ${remainingSupps.length}টি সাপ্লিমেন্ট লিস্ট প্রিমিয়াম ইউজারদের জন্য ঢাকা রয়েছে`,
+                        `Remaining ${remainingSupps.length} Supplements are Covered for Premium Users`,
+                        'সাপ্লিমেন্ট লিস্ট প্রিমিয়াম ইউজারদের জন্য সংরক্ষিত। অন্যদের শুধুমাত্র ১টি সাপ্লিমেন্ট দেখানো হচ্ছে—বাকি সাপ্লিমেন্ট ও সঠিক ডোজ দেখতে প্রিমিয়াম মেম্বারশিপ নিন।',
+                        'The full supplement protocol is exclusive to Premium members. Upgrade now to uncover all remaining supplements, dosages, and medication synergies.',
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                          {remainingSupps.map((supp, i) => (
+                            <div
+                              key={i}
+                              className={`p-5 rounded-2xl border flex flex-col justify-between gap-3 ${
+                                darkMode
+                                  ? 'bg-slate-800/50 border-slate-700'
+                                  : 'bg-slate-50 border-slate-200'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex justify-between items-start gap-2 mb-1.5">
+                                  <div>
+                                    <h4 className="font-bold text-sm md:text-base text-emerald-600 dark:text-emerald-400">
+                                      {supp.name}
+                                    </h4>
+                                    <div className="text-xs font-semibold opacity-75 mt-0.5">
+                                      {supp.dosage} {supp.timing ? `· ${supp.timing}` : ''}
+                                    </div>
+                                  </div>
+                                  <span className="text-lg">💊</span>
+                                </div>
+                                <p className="text-xs opacity-80 leading-relaxed mt-2">
+                                  {supp.rationale}
+                                </p>
+                              </div>
+                              <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700 text-[11px] opacity-60">
+                                {supp.phaseRole}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
               </div>
             </div>
           )}
 
           {/* ================================================================= */}
-          {/* TAB 5: ANIMATED EXERCISE & MOVEMENT PROTOCOL                      */}
+          {/* TAB 5: ANIMATED EXERCISE & MOVEMENT PROTOCOL (আংশিক প্রিভিউ)      */}
           {/* ================================================================= */}
           {activeSubTab === 'exercise' && (
             <div
@@ -1365,60 +1959,139 @@ const DietView: React.FC<Props> = ({
                 darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
               }`}
             >
-              <div className="mb-5">
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                  {isBn ? 'অ্যানিমেটেড ফিজিক্যাল মুভমেন্ট গাইড' : 'Animated Movement Prescription'}
-                </span>
-                <h3 className="font-bold mt-0.5 text-xl md:text-2xl serif italic">
-                  {isBn ? 'এক্সারসাইজ ও মুভমেন্ট প্রোটোকল' : t.movement_plan_title}
-                </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
+                <div>
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    {isBn ? 'অ্যানিমেটেড ফিজিক্যাল মুভমেন্ট গাইড' : 'Animated Movement Prescription'}
+                  </span>
+                  <h3 className="font-bold mt-0.5 text-xl md:text-2xl serif italic">
+                    {isBn ? 'এক্সারসাইজ ও মুভমেন্ট প্রোটোকল' : t.movement_plan_title}
+                  </h3>
+                </div>
+                {!isPremiumUser && (
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    {isBn ? '১টি এক্সারসাইজ উন্মুক্ত · বাকিগুলো ঢাকা' : '1 Exercise Shown · Rest Covered'}
+                  </span>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {chart.activities?.map((act, i) => (
-                  <div
-                    key={i}
-                    className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 ${
-                      darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`w-16 h-16 rounded-2xl flex-shrink-0 flex items-center justify-center border ${
-                          darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
-                        }`}
-                      >
-                        <ExerciseAnimation type={act.type} cue={act.visualCue} color="#10b981" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm md:text-base leading-snug">{act.name}</h4>
-                        <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums block mt-0.5">
-                          {act.duration}
-                        </span>
-                        {act.frequency && (
-                          <span className="text-[11px] font-semibold opacity-60 block">
-                            {act.frequency}
+              {isPremiumUser ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {chart.activities?.map((act, i) => (
+                    <div
+                      key={i}
+                      className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 ${
+                        darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-16 h-16 rounded-2xl flex-shrink-0 flex items-center justify-center border ${
+                            darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                          }`}
+                        >
+                          <ExerciseAnimation type={act.type} cue={act.visualCue} color="#10b981" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm md:text-base leading-snug">{act.name}</h4>
+                          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums block mt-0.5">
+                            {act.duration}
                           </span>
+                          {act.frequency && (
+                            <span className="text-[11px] font-semibold opacity-60 block">
+                              {act.frequency}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-xs opacity-85 leading-relaxed">{act.instructions}</p>
+                        {act.clinicalReason && (
+                          <p className="text-[11px] italic text-emerald-600 dark:text-emerald-400 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                            ✓ {act.clinicalReason}
+                          </p>
                         )}
                       </div>
                     </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {chart.activities?.slice(0, 1).map((act, i) => (
+                    <div
+                      key={i}
+                      className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 ${
+                        darkMode
+                          ? 'bg-slate-800/60 border-emerald-500/40'
+                          : 'bg-emerald-50/40 border-emerald-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-16 h-16 rounded-2xl flex-shrink-0 flex items-center justify-center border ${
+                            darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                          }`}
+                        >
+                          <ExerciseAnimation type={act.type} cue={act.visualCue} color="#10b981" />
+                        </div>
+                        <div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 text-white inline-block mb-1">
+                            {isBn ? 'ফ্রি প্রিভিউ #১' : 'Free Preview #1'}
+                          </span>
+                          <h4 className="font-bold text-sm md:text-base leading-snug">{act.name}</h4>
+                          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums block mt-0.5">
+                            {act.duration}
+                          </span>
+                          {act.frequency && (
+                            <span className="text-[11px] font-semibold opacity-60 block">
+                              {act.frequency}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                    <div className="space-y-2">
-                      <p className="text-xs opacity-85 leading-relaxed">{act.instructions}</p>
-                      {act.clinicalReason && (
-                        <p className="text-[11px] italic text-emerald-600 dark:text-emerald-400 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-                          ✓ {act.clinicalReason}
-                        </p>
-                      )}
+                      <div className="space-y-2">
+                        <p className="text-xs opacity-85 leading-relaxed">{act.instructions}</p>
+                        {act.clinicalReason && (
+                          <p className="text-[11px] italic text-emerald-600 dark:text-emerald-400 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                            ✓ {act.clinicalReason}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+
+                  {chart.activities && chart.activities.length > 1 &&
+                    renderCoveredPremiumSection(
+                      'বাকি এক্সারসাইজ ও মুভমেন্ট গাইড প্রিমিয়াম ইউজারদের জন্য ঢাকা রয়েছে',
+                      'Remaining Exercise & Movement Protocols are Covered for Premium Users',
+                      'আপনার শারীরিক কন্ডিশন অনুযায়ী সম্পূর্ণ মুভমেন্ট ও প্রাণায়াম প্রোটোকল দেখতে প্রিমিয়াম মেম্বারশিপ নিন।',
+                      'Upgrade to Premium to view all personalized movement, yoga, and metabolic exercise prescriptions.',
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                        {chart.activities.slice(1).map((act, i) => (
+                          <div
+                            key={i}
+                            className={`p-5 rounded-2xl border ${
+                              darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'
+                            }`}
+                          >
+                            <h4 className="font-bold text-sm">{act.name}</h4>
+                            <span className="text-xs font-mono text-emerald-600 block mt-0.5">
+                              {act.duration}
+                            </span>
+                            <p className="text-xs opacity-80 mt-2">{act.instructions}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                </div>
+              )}
             </div>
           )}
 
           {/* ================================================================= */}
-          {/* TAB 6: LIFESTYLE TIPS, FORBIDDEN FOODS & SMART BAZAAR             */}
+          {/* TAB 6: LIFESTYLE TIPS, FORBIDDEN FOODS & SMART BAZAAR (আংশিক)    */}
           {/* ================================================================= */}
           {activeSubTab === 'lifestyle' && (
             <div className="space-y-6 animate-in fade-in duration-300">
@@ -1426,59 +2099,120 @@ const DietView: React.FC<Props> = ({
                 {/* Lifestyle & Habits Card */}
                 {chart.recommendations && chart.recommendations.length > 0 && (
                   <div
-                    className={`p-6 rounded-3xl border ${
+                    className={`p-6 rounded-3xl border flex flex-col justify-between gap-4 ${
                       darkMode
                         ? 'bg-indigo-950/15 border-indigo-900/30'
                         : 'bg-indigo-50/60 border-indigo-200'
                     }`}
                   >
-                    <h3
-                      className={`font-bold mb-4 text-xl serif italic ${
-                        darkMode ? 'text-indigo-400' : 'text-indigo-900'
-                      }`}
-                    >
-                      {t.lifestyle_title}
-                    </h3>
-                    <ul className="space-y-3">
-                      {chart.recommendations.map((rec, i) => (
-                        <li key={i} className="flex gap-3 items-start text-xs md:text-sm leading-relaxed">
-                          <span className="font-bold text-indigo-500">0{i + 1}.</span>
-                          <span className={darkMode ? 'text-slate-300' : 'text-slate-700'}>
-                            {rec}
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-4">
+                        <h3
+                          className={`font-bold text-xl serif italic ${
+                            darkMode ? 'text-indigo-400' : 'text-indigo-900'
+                          }`}
+                        >
+                          {t.lifestyle_title}
+                        </h3>
+                        {!isPremiumUser && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
+                            {isBn ? 'আংশিক প্রিভিউ' : 'Partial Preview'}
                           </span>
-                        </li>
-                      ))}
-                    </ul>
+                        )}
+                      </div>
+                      <ul className="space-y-3">
+                        {(isPremiumUser
+                          ? chart.recommendations
+                          : chart.recommendations.slice(0, 1)
+                        ).map((rec, i) => (
+                          <li key={i} className="flex gap-3 items-start text-xs md:text-sm leading-relaxed">
+                            <span className="font-bold text-indigo-500">0{i + 1}.</span>
+                            <span className={darkMode ? 'text-slate-300' : 'text-slate-700'}>
+                              {rec}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {!isPremiumUser && chart.recommendations.length > 1 &&
+                      renderCoveredPremiumSection(
+                        'বাকি লাইফস্টাইল ও সার্কাডিয়ান নির্দেশিকা ঢাকা রয়েছে',
+                        'Remaining Lifestyle & Circadian Rules are Covered',
+                        'সম্পূর্ণ লাইফস্টাইল ও ঘুমের রুটিন দেখতে প্রিমিয়াম মেম্বারশিপ নিন।',
+                        'Upgrade to Premium to view all lifestyle and circadian rhythm guidelines.',
+                        <ul className="space-y-2.5 p-4">
+                          {chart.recommendations.slice(1).map((rec, i) => (
+                            <li key={i} className="flex gap-3 items-start text-xs">
+                              <span className="font-bold text-indigo-500">0{i + 2}.</span>
+                              <span>{rec}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                   </div>
                 )}
 
                 {/* Red Zone Forbidden Foods Card */}
                 <div
-                  className={`p-6 rounded-3xl border ${
+                  className={`p-6 rounded-3xl border flex flex-col justify-between gap-4 ${
                     darkMode
                       ? 'bg-red-950/15 border-red-900/30 text-red-300'
                       : 'bg-red-50/70 border-red-200 text-red-900'
                   }`}
                 >
-                  <h3 className="font-bold mb-4 text-xl serif italic">
-                    🔴 {isBn ? 'রেড জোন — সম্পূর্ণ বর্জনীয় খাবার' : t.foods_avoid}
-                  </h3>
-                  <ul className="space-y-2.5">
-                    {chart.forbiddenFoods?.map((f, i) => (
-                      <li key={i} className="flex gap-2.5 items-center text-xs md:text-sm font-bold">
-                        <span className="text-red-500">✕</span> {f}
-                      </li>
-                    ))}
-                  </ul>
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <h3 className="font-bold text-xl serif italic">
+                        🔴 {isBn ? 'রেড জোন — সম্পূর্ণ বর্জনীয় খাবার' : t.foods_avoid}
+                      </h3>
+                      {!isPremiumUser && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-600 dark:text-red-400">
+                          {isBn ? 'আংশিক প্রিভিউ' : 'Partial Preview'}
+                        </span>
+                      )}
+                    </div>
+                    <ul className="space-y-2.5">
+                      {(isPremiumUser
+                        ? chart.forbiddenFoods || []
+                        : (chart.forbiddenFoods || []).slice(0, 1)
+                      ).map((f, i) => (
+                        <li key={i} className="flex gap-2.5 items-center text-xs md:text-sm font-bold">
+                          <span className="text-red-500">✕</span> {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {!isPremiumUser && (chart.forbiddenFoods?.length || 0) > 1 &&
+                    renderCoveredPremiumSection(
+                      'বাকি বর্জনীয় খাবারের তালিকা ঢাকা রয়েছে',
+                      'Remaining Forbidden Foods List is Covered',
+                      'আপনার রোগ অনুযায়ী সম্পূর্ণ নিষিদ্ধ খাবারের তালিকা দেখতে প্রিমিয়াম মেম্বারশিপ নিন।',
+                      'Upgrade to Premium to view the complete list of restricted Red Zone foods.',
+                      <ul className="space-y-2 p-4">
+                        {(chart.forbiddenFoods || []).slice(1).map((f, i) => (
+                          <li key={i} className="flex gap-2 items-center text-xs font-bold">
+                            <span className="text-red-500">✕</span> {f}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                 </div>
               </div>
 
-              <SmartBazaar
-                profile={profile}
-                currentPhase={currentPhase}
-                lang={lang}
-                darkMode={darkMode}
-              />
+              {renderCoveredPremiumSection(
+                'স্মার্ট বাজার ও অর্গানিক শপিং গাইড প্রিমিয়াম ইউজারদের জন্য ঢাকা রয়েছে',
+                'Smart Bazaar & Clinical Grocery List is Reserved for Premium Users',
+                'আপনার ডায়েট চার্ট অনুযায়ী সাপ্তাহিক বাজারের তালিকা ও অর্গানিক সোর্সিং গাইড আনলক করতে প্রিমিয়াম মেম্বারশিপ নিন।',
+                'Unlock your personalized weekly Smart Bazaar shopping list with a Premium subscription.',
+                <SmartBazaar
+                  profile={profile}
+                  currentPhase={currentPhase}
+                  lang={lang}
+                  darkMode={darkMode}
+                />
+              )}
             </div>
           )}
 
@@ -1547,6 +2281,74 @@ const DietView: React.FC<Props> = ({
                 <span>→</span>
               </button>
             )}
+          </div>
+
+          {/* ================================================================= */}
+          {/* FLOATING QUICK-SWITCH BAR (DIET CHART, SUPPLEMENTS, EXERCISE)     */}
+          {/* ================================================================= */}
+          <div className="fixed bottom-16 md:bottom-4 left-1/2 -translate-x-1/2 z-40 w-[96%] max-w-5xl pointer-events-none">
+            <div
+              className={`pointer-events-auto p-2.5 md:p-3 rounded-2xl border shadow-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-2 ${
+                darkMode
+                  ? 'bg-slate-900/95 border-emerald-500/40 text-white'
+                  : 'bg-white/95 border-emerald-500/40 text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                {onOpenTrafficLightGuide && (
+                  <button
+                    type="button"
+                    onClick={onOpenTrafficLightGuide}
+                    className={`px-3 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all shrink-0 border ${
+                      darkMode
+                        ? 'bg-slate-800 border-slate-700 text-amber-300 hover:bg-slate-700'
+                        : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
+                    }`}
+                  >
+                    🚦 {isBn ? 'ফুড গাইড' : 'Food Guide'}
+                  </button>
+                )}
+                {SUB_TABS.map((tab) => {
+                  const isActive = activeSubTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => handleSubTabChange(tab.id)}
+                      className={`px-3 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all shrink-0 ${
+                        isActive
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : darkMode
+                          ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {isBn ? tab.labelBn : tab.labelEn}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {currentTabIndex < SUB_TABS.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={() => handleSubTabChange(SUB_TABS[currentTabIndex + 1].id)}
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md whitespace-nowrap shrink-0"
+                >
+                  {isBn
+                    ? `পরবর্তী: ${SUB_TABS[currentTabIndex + 1].labelBn} →`
+                    : `Next: ${SUB_TABS[currentTabIndex + 1].labelEn} →`}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleSubTabChange('meals')}
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-white whitespace-nowrap shrink-0"
+                >
+                  {isBn ? '🥗 ডায়েট চার্টে ফিরুন' : '🥗 Back to Diet Chart'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ) : null}

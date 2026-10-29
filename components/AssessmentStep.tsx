@@ -13,6 +13,7 @@ import { ALL_QUESTIONS } from '../questions';
 import { translations } from '../i18n';
 import CohortSelector from './CohortSelector';
 import CohortAssessmentForm from './CohortAssessmentForm';
+import { signInWithGoogleAccount, isAdminEmail } from '../firebase';
 
 interface Props {
   user?: User | null;
@@ -465,9 +466,9 @@ const AssessmentStep: React.FC<Props> = ({
   if (stepStage === 'role_select' && !isDoctorMode) {
     return (
       <div className="max-w-3xl mx-auto space-y-6 py-4 animate-in zoom-in duration-300">
-        <div className="text-center space-y-2 mb-8">
+        <div className="text-center space-y-2 mb-6">
           <span className="inline-block px-3.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-            {isBn ? 'ধাপ ১: প্রোফাইল নির্বাচন করুন' : 'Step 1: Choose Your Profile Type'}
+            {isBn ? 'ধাপ ১: প্রোফাইল ও Google লগইন' : 'Step 1: Profile & Google Login'}
           </span>
           <h2 className={`text-2xl md:text-4xl font-bold serif italic ${darkMode ? 'text-white' : 'text-slate-900'}`}>
             {isBn ? 'আপনি কোন ধরনের প্রোফাইল তৈরি করতে চান?' : 'Select Your Profile Interface'}
@@ -477,6 +478,76 @@ const AssessmentStep: React.FC<Props> = ({
               ? 'আমাদের অ্যাপে ৩ ধরনের প্রোফাইল ও ৩ ধরনের ডেডিকেটেড ইন্টারফেস রয়েছে। প্রোফাইল ও অ্যাসেসমেন্ট সম্পন্ন করলেই ডায়েট মেকারের সব ফিচার আনলক হবে।'
               : 'Choose from 3 specialized profile types, each unlocking its own dedicated interface plus full access to the Diet Maker.'}
           </p>
+        </div>
+
+        {/* Direct Google Mail Sign-In for User Profile (Unlocks Admin Features if Admin Google Mail) */}
+        <div
+          className={`p-5 rounded-3xl border-2 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md ${
+            darkMode
+              ? 'bg-slate-900 border-blue-500/40'
+              : 'bg-blue-50/60 border-blue-200'
+          }`}
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-lg shrink-0 shadow-md">
+              G
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-extrabold">
+                {isBn
+                  ? 'Google Mail দিয়ে ইউজার প্রোফাইলে লগইন করুন'
+                  : 'Sign In to User Profile with Google Mail'}
+              </div>
+              <div className="text-[11px] opacity-70">
+                {isBn
+                  ? 'আপনার Google অ্যাকাউন্ট দিয়ে দ্রুত প্রোফাইলে প্রবেশ করুন (অ্যাডমিন Google মেইল দিয়ে লগইন করলে অ্যাডমিন ফিচারগুলো স্বয়ংক্রিয়ভাবে যুক্ত হবে)।'
+                  : 'Quickly sign in to your User Profile with Google (Admin features unlock automatically when signed in with the Admin Google email).'}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const fbUser = await signInWithGoogleAccount();
+                const adminMatched = isAdminEmail(fbUser.email);
+                const resolvedName =
+                  fbUser.displayName || fullName.trim() || (isBn ? 'গুগল ইউজার' : 'Google User');
+                if (fbUser.displayName) setFullName(fbUser.displayName);
+                if (fbUser.email) setEmailOrPhone(fbUser.email);
+
+                const googleUser: User = {
+                  id: `USR-${fbUser.uid.slice(0, 6).toUpperCase()}`,
+                  name: resolvedName,
+                  email: fbUser.email || 'user@gmail.com',
+                  photoUrl: fbUser.photoURL || undefined,
+                  firebaseUid: fbUser.uid,
+                  isAdmin: adminMatched,
+                  isPro: adminMatched ? true : Boolean(user?.isPro),
+                  profileType: 'self',
+                  trialStartDate: new Date().toISOString(),
+                  points: user?.points || 150,
+                  badges: user?.badges || [],
+                };
+                setPendingUser(googleUser);
+                if (onSelfLogin) {
+                  onSelfLogin(googleUser);
+                }
+              } catch (err) {
+                console.error('Google Sign-In error:', err);
+              }
+            }}
+            className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-lg shrink-0 transition-all active:scale-95"
+          >
+            {user?.firebaseUid
+              ? isBn
+                ? `✓ সংযুক্ত (${user.email}) — পরিবর্তন করুন`
+                : `✓ Connected (${user.email}) — Switch`
+              : isBn
+              ? '🔗 Google Mail দিয়ে লগইন করুন'
+              : '🔗 Sign In with Google Mail'}
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -818,6 +889,46 @@ const AssessmentStep: React.FC<Props> = ({
         </div>
 
         <div className="space-y-4">
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const fbUser = await signInWithGoogleAccount();
+                if (fbUser.displayName) setFullName(fbUser.displayName);
+                if (fbUser.email) setEmailOrPhone(fbUser.email);
+                if (onSelfLogin) {
+                  onSelfLogin({
+                    id: `USR-${fbUser.uid.slice(0, 5).toUpperCase()}`,
+                    name: fbUser.displayName || fullName || 'Google User',
+                    email: fbUser.email || emailOrPhone || 'user@gmail.com',
+                    photoUrl: fbUser.photoURL || undefined,
+                    firebaseUid: fbUser.uid,
+                    isAdmin: isAdminEmail(fbUser.email),
+                    isPro: isAdminEmail(fbUser.email),
+                    profileType: selectedRole === 'family' ? 'family' : 'self',
+                    trialStartDate: new Date().toISOString(),
+                    points: 100,
+                    badges: [],
+                  });
+                }
+              } catch (e) {
+                console.error('Google Sign-In error:', e);
+              }
+            }}
+            className={`w-full py-3.5 px-4 rounded-2xl border-2 font-extrabold text-xs flex items-center justify-center gap-2.5 transition-all shadow-sm ${
+              darkMode
+                ? 'bg-slate-800 border-slate-700 text-white hover:bg-slate-700'
+                : 'bg-white border-slate-200 text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            <span>🔐</span>
+            <span>
+              {isBn
+                ? 'Google Account দিয়ে প্রোফাইল সাইন-ইন ও অটো-ফিল করুন'
+                : 'Sign In & Auto-Fill with Google Account'}
+            </span>
+          </button>
+
           {isFamily && (
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider opacity-70 px-1">

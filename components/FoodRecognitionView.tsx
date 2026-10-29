@@ -1,5 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { HealthProfile, Language, TrafficLightZone } from '../types';
+import {
+  loadPlatformState,
+  subscribePlatformState,
+  submitFoodSuggestion,
+} from '../services/platformHubService';
 import {
   BD_FCT_RAW_FOODS,
   BD_FCT_CATEGORIES,
@@ -79,6 +84,55 @@ const FoodRecognitionView: React.FC<Props> = ({
   // Modal state with portion scaling (default 100g)
   const [selectedFood, setSelectedFood] = useState<BdFctFoodRecord | null>(null);
   const [modalPortionGrams, setModalPortionGrams] = useState<number>(100);
+
+  // Food Suggestion Box State
+  const [hubState, setHubState] = useState(() => loadPlatformState());
+  const [showSuggestModal, setShowSuggestModal] = useState(false);
+  const [sugNameBn, setSugNameBn] = useState('');
+  const [sugNameEn, setSugNameEn] = useState('');
+  const [sugCat, setSugCat] = useState('Vegetables & Greens');
+  const [sugCal, setSugCal] = useState('120');
+  const [sugProt, setSugProt] = useState('4');
+  const [sugCarb, setSugCarb] = useState('18');
+  const [sugFat, setSugFat] = useState('2');
+  const [sugZone, setSugZone] = useState<TrafficLightZone>('green');
+  const [sugBenefits, setSugBenefits] = useState('');
+  const [sugBy, setSugBy] = useState('');
+  const [sugSuccess, setSugSuccess] = useState(false);
+
+  useEffect(() => {
+    return subscribePlatformState((st) => setHubState(st));
+  }, []);
+
+  const approvedSuggestedFoods = hubState.foodSuggestions.filter(
+    (f) => f.status === 'approved'
+  );
+
+  const handleFoodSuggestionSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sugNameBn.trim()) return;
+    submitFoodSuggestion({
+      submittedByName: sugBy.trim() || (isBn ? 'কমিউনিটি সদস্য' : 'Community User'),
+      nameBn: sugNameBn.trim(),
+      nameEn: sugNameEn.trim() || sugNameBn.trim(),
+      category: sugCat,
+      caloriesPer100g: parseFloat(sugCal) || 100,
+      proteinG: parseFloat(sugProt) || 3,
+      carbsG: parseFloat(sugCarb) || 15,
+      fatG: parseFloat(sugFat) || 2,
+      fiberG: 3.5,
+      suggestedZone: sugZone,
+      healthBenefitsBn:
+        sugBenefits.trim() ||
+        (isBn ? 'পুষ্টিগুণ সমৃদ্ধ দেশি খাবার।' : 'Nutritious local food item.'),
+      healthBenefitsEn:
+        sugBenefits.trim() || 'Nutritious local food item.',
+    });
+    setSugSuccess(true);
+    setSugNameBn('');
+    setSugNameEn('');
+    setSugBenefits('');
+  };
 
   // My Plate Calculator state
   const [plateItems, setPlateItems] = useState<PlateEntry[]>(() => {
@@ -400,9 +454,225 @@ const FoodRecognitionView: React.FC<Props> = ({
                   : `Compare (${compareCodes.length}/4)`}
               </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSugSuccess(false);
+                setShowSuggestModal(true);
+              }}
+              className="px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md hover:from-amber-400 hover:to-orange-500"
+            >
+              <span>💡</span>
+              <span>{isBn ? '+ নতুন খাবার সাজেশন বক্স' : '+ Suggest a Food'}</span>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Admin-Approved User Suggested Foods Strip */}
+      {approvedSuggestedFoods.length > 0 && (
+        <div
+          className={`p-4 md:p-5 rounded-3xl border space-y-3 ${
+            darkMode
+              ? 'bg-emerald-950/20 border-emerald-500/30'
+              : 'bg-emerald-50/60 border-emerald-200'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              {isBn
+                ? `✨ ইউজারদের সাজেস্ট করা ও অ্যাডমিন অনুমোদিত নতুন খাবার (${approvedSuggestedFoods.length})`
+                : `✨ User Suggested & Admin-Approved Foods (${approvedSuggestedFoods.length})`}
+            </h3>
+            <button
+              type="button"
+              onClick={() => {
+                setSugSuccess(false);
+                setShowSuggestModal(true);
+              }}
+              className="text-xs font-bold text-amber-600 dark:text-amber-400 underline"
+            >
+              {isBn ? '+ আরও খাবার সাজেস্ট করুন' : '+ Suggest Another Food'}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {approvedSuggestedFoods.map((sf) => (
+              <div
+                key={sf.id}
+                className={`p-3.5 rounded-2xl border flex flex-col justify-between gap-2 ${
+                  darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200/80'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+                      {sf.suggestedZone.toUpperCase()} ZONE • Admin Approved
+                    </span>
+                    <span className="text-xs font-black text-amber-500">
+                      {sf.caloriesPer100g} kcal
+                    </span>
+                  </div>
+                  <h4 className="font-extrabold text-sm mt-1">
+                    {isBn ? sf.nameBn : sf.nameEn}
+                  </h4>
+                  <p className="text-[11px] opacity-75 mt-0.5">
+                    {isBn ? sf.healthBenefitsBn : sf.healthBenefitsEn}
+                  </p>
+                </div>
+                <div className="text-[10px] opacity-60 flex justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <span>P:{sf.proteinG}g • C:{sf.carbsG}g • F:{sf.fatG}g</span>
+                  <span>By: {sf.submittedByName}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Food Suggestion Box Modal */}
+      {showSuggestModal && (
+        <div className="fixed inset-0 z-[240] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+          <div
+            className={`w-full max-w-lg rounded-[32px] border-2 p-6 md:p-8 space-y-4 shadow-2xl ${
+              darkMode
+                ? 'bg-slate-900 border-amber-500/40 text-white'
+                : 'bg-white border-amber-300 text-slate-900'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-500">
+                  {isBn ? 'ফুড সাজেশন বক্স' : 'Food Suggestion Box'}
+                </span>
+                <h3 className="text-lg font-extrabold mt-1">
+                  {isBn
+                    ? '💡 নতুন দেশি বা থেরাপিউটিক খাবার যুক্ত করার পরামর্শ দিন'
+                    : '💡 Suggest a New Food for Admin Approval'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSuggestModal(false)}
+                className="text-sm font-bold opacity-60 hover:opacity-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {sugSuccess ? (
+              <div className="py-6 text-center space-y-3">
+                <div className="text-4xl">✅</div>
+                <h4 className="font-extrabold text-base">
+                  {isBn
+                    ? 'আপনার খাবারের সাজেশনটি অ্যাডমিন প্যানেলে পাঠানো হয়েছে!'
+                    : 'Your Food Suggestion Has Been Sent to the Admin Panel!'}
+                </h4>
+                <p className="text-xs opacity-75">
+                  {isBn
+                    ? 'অ্যাডমিন প্যানেল যাচাই করে অ্যাপ্রুভ করলেই খাবারটি ফুড গ্লোসারি ও ট্রাফিক লাইট ফুড গাইডে যুক্ত হয়ে যাবে।'
+                    : 'Once Admin reviews and approves this item, it will appear in the Food Glossary and Traffic Light Guide.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowSuggestModal(false)}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold"
+                >
+                  {isBn ? 'ঠিক আছে' : 'Close'}
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleFoodSuggestionSubmit} className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold opacity-75">
+                      {isBn ? 'খাবারের নাম (বাংলায়) *' : 'Food Name (Bangla) *'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={sugNameBn}
+                      onChange={(e) => setSugNameBn(e.target.value)}
+                      placeholder={isBn ? 'যেমন: কাউনের চালের জাউ' : 'e.g. Foxtail Millet'}
+                      className={`w-full p-2.5 rounded-xl border text-xs mt-1 ${
+                        darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold opacity-75">
+                      {isBn ? 'খাবারের নাম (ইংরেজিতে)' : 'Food Name (English)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={sugNameEn}
+                      onChange={(e) => setSugNameEn(e.target.value)}
+                      placeholder="e.g. Foxtail Millet Porridge"
+                      className={`w-full p-2.5 rounded-xl border text-xs mt-1 ${
+                        darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold opacity-75">
+                      {isBn ? 'আপনার নাম' : 'Your Name'}
+                    </label>
+                    <input
+                      type="text"
+                      value={sugBy}
+                      onChange={(e) => setSugBy(e.target.value)}
+                      placeholder={isBn ? 'আপনার নাম লিখুন' : 'Your Name'}
+                      className={`w-full p-2.5 rounded-xl border text-xs mt-1 ${
+                        darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold opacity-75">
+                      {isBn ? 'আনুমানিক ক্যালোরি (প্রতি ১০০ গ্রাম)' : 'Approx Calories / 100g'}
+                    </label>
+                    <input
+                      type="number"
+                      value={sugCal}
+                      onChange={(e) => setSugCal(e.target.value)}
+                      className={`w-full p-2.5 rounded-xl border text-xs mt-1 ${
+                        darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold opacity-75">
+                    {isBn ? 'খাবারটির পুষ্টিগুণ ও উপকারিতা *' : 'Health Benefits & Reason *'}
+                  </label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={sugBenefits}
+                    onChange={(e) => setSugBenefits(e.target.value)}
+                    placeholder={
+                      isBn
+                        ? 'কেন এই খাবারটি ডাটাবেসে যুক্ত করা উচিত এবং কোন রোগের জন্য উপকারী...'
+                        : 'Explain the nutritional benefits...'
+                    }
+                    className={`w-full p-2.5 rounded-xl border text-xs mt-1 ${
+                      darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-extrabold text-xs uppercase tracking-wider shadow-lg"
+                >
+                  {isBn ? 'অ্যাডমিন প্যানেলে সাজেশন পাঠান' : 'Submit Suggestion to Admin Panel'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* =================================================================== */}
       {/* TAB 1: FULL 381-FOOD EXPLORER + TRAFFIC LIGHT + 8 HEALTH LENSES     */}

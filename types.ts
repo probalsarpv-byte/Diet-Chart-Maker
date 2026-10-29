@@ -32,15 +32,20 @@ export interface User {
   name: string;
   email: string;
   photoUrl?: string;
-  isPro: boolean; 
-  profileType?: ProfileRoleType;
+  avatar?: string;
+  isPro?: boolean;
+  isSubscribed?: boolean;
+  isAdmin?: boolean;
+  firebaseUid?: string;
+  profileType?: ProfileRoleType | 'individual' | 'vendor';
   isFamilyManager?: boolean;
   familyName?: string;
   familyMembers?: FamilyMember[];
-  trialStartDate: string;
-  points: number; 
-  badges: Badge[]; 
-  professionalProfile?: ProfessionalProfile; 
+  trialStartDate?: string;
+  points: number;
+  streak?: number;
+  badges: Badge[];
+  professionalProfile?: ProfessionalProfile;
   isSeller?: boolean;
 }
 
@@ -171,12 +176,19 @@ export interface TrafficLightFoodItem {
   functionalBadges?: { key: string; icon: string; label: string }[];
   clinicalReasonEn: string;
   clinicalReasonBn: string;
+  portionLimitBn?: string;
+  portionLimitEn?: string;
+  name?: string;
+  reason?: string;
   isVegetableCarb?: boolean;
   isCerealCarb?: boolean;
 }
 
 export interface TrafficLightGuide {
   items: TrafficLightFoodItem[];
+  green?: TrafficLightFoodItem[];
+  yellow?: TrafficLightFoodItem[];
+  red?: TrafficLightFoodItem[];
   recommendedMealFrequency: 3 | 4;
   mealFrequencyReasonEn: string;
   mealFrequencyReasonBn: string;
@@ -233,7 +245,7 @@ export interface HealthProfile {
   medications: string;
   dietHistory: string;
   medicalConditions?: string;
-  currentMedicationsList?: string;
+  currentMedicationsList?: string | string[];
   dietGoals?: string;
   medicalReportFiles?: string[];
   adherenceHistory?: DailyAdherence[];
@@ -246,7 +258,7 @@ export interface HealthProfile {
     cycleLength: number;
     hasPCOS: boolean;
   };
-  analysis?: AssessmentAnalysis;
+  analysis?: AssessmentAnalysis | null;
   location?: {
     latitude: number;
     longitude: number;
@@ -261,7 +273,7 @@ export interface HealthProfile {
   // Cohort Specialization
   cohortType?: CohortType;
   pregnancyMonth?: number; // 1 to 9
-  lactationStage?: '0-6m' | '6-12m';
+  lactationStage?: '0-6m' | '6-12m' | 'none';
   childAgeGroup?: '1-3' | '4-6' | '7-12';
   oncologyPhase?: 'chemo' | 'radio' | 'recovery' | 'remission';
   adolescentSubtype?: 'girl_anemia' | 'boy_growth' | 'sports';
@@ -269,6 +281,21 @@ export interface HealthProfile {
   cohortLabMarkers?: Record<string, string | number>;
   cohortSafetyAlerts?: CohortSafetyAlert[];
   nutrientBoosters?: NutrientBooster[];
+
+  // Phase Transition Clinical Evaluations (Phase 1 -> 2, 2 -> 3, 3 -> 4)
+  unlockedPhases?: Phase[];
+  phaseEvaluations?: Record<number, PhaseEvaluationRecord>;
+}
+
+export interface PhaseEvaluationRecord {
+  fromPhase: Phase;
+  toPhase: Phase;
+  completedAt: string;
+  scorePercent: number;
+  improved: boolean;
+  answers: Record<string, number>;
+  clinicalSummaryBn: string;
+  clinicalSummaryEn: string;
 }
 
 export type CohortType =
@@ -575,17 +602,21 @@ export interface GutAnalysisResult {
 export interface CommunityComment {
   id: string;
   author: string;
+  authorId?: string;
+  authorEmail?: string;
   text: string;
-  timestamp: Date;
+  timestamp: Date | string;
 }
 
 export interface CommunityPost {
   id: string;
   author: string;
+  authorId?: string;
+  authorEmail?: string;
   dosha: string;
   phase: number;
   experience: string;
-  timestamp: Date;
+  timestamp: Date | string;
   likes: number;
   comments: CommunityComment[];
 }
@@ -619,4 +650,181 @@ export interface DailyCalorieLog {
   waterGlasses: number;
   items: LoggedFoodItem[];
 }
+
+// --- Admin Panel & Multi-Role Ecosystem Interfaces ---
+
+export type PaymentMethodType = 'bkash' | 'nagad' | 'rocket' | 'bank';
+
+export interface ManualPaymentSubmission {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  paymentType: 'subscription' | 'consultation';
+  planName: string;
+  amountBdt: number;
+  method: PaymentMethodType;
+  senderNumber: string;
+  transactionId: string;
+  notes?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: string;
+  reviewedAt?: string;
+  approvalEmailSent?: boolean;
+  approvalEmailSubject?: string;
+  approvalEmailBody?: string;
+  relatedBookingId?: string;
+}
+
+export interface MarketplaceStoreRegistration {
+  id: string;
+  ownerUserId: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPhone: string;
+  storeName: string;
+  licenseNumber: string;
+  location: string;
+  categoryFocus: string;
+  description: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: string;
+  reviewedAt?: string;
+}
+
+export interface FoodSuggestionSubmission {
+  id: string;
+  submittedByUserId?: string;
+  submittedByName: string;
+  submittedByEmail?: string;
+  nameBn: string;
+  nameEn: string;
+  category: string;
+  caloriesPer100g: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG: number;
+  suggestedZone: TrafficLightZone;
+  healthBenefitsBn: string;
+  healthBenefitsEn: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: string;
+  reviewedAt?: string;
+}
+
+export interface CommunityModerationIncident {
+  id: string;
+  type: 'ai_auto_deleted' | 'user_reported';
+  targetType: 'post' | 'comment';
+  postId: string;
+  commentId?: string;
+  offenderName: string;
+  offenderUserId?: string;
+  offenderEmail?: string;
+  contentSnippet: string;
+  reason: string;
+  reportedByName?: string;
+  status: 'auto_removed' | 'pending_review' | 'deleted_and_banned' | 'dismissed';
+  createdAt: string;
+}
+
+export interface BannedCommunityUser {
+  id: string;
+  userId?: string;
+  userName: string;
+  userEmail?: string;
+  reason: string;
+  bannedAt: string;
+}
+
+export interface NutritionistProfileListing {
+  id: string;
+  userId: string;
+  fullNameBn: string;
+  fullNameEn: string;
+  email: string;
+  phone: string;
+  roleTitleBn: string;
+  roleTitleEn: string;
+  licenseNumber: string;
+  specialtyBn: string;
+  specialtyEn: string;
+  institutionBn: string;
+  institutionEn: string;
+  experienceYears: number;
+  consultationFeeBdt: number;
+  availableDaysBn: string;
+  availableDaysEn: string;
+  availableSlots: string[];
+  bioBn: string;
+  bioEn: string;
+  avatarEmoji: string;
+  rating: number;
+  reviewsCount: number;
+  status: 'pending' | 'approved' | 'rejected';
+  isFeatured: boolean;
+  featuredRequested: boolean;
+  defaultMeetUrl?: string;
+  createdAt: string;
+}
+
+export type SessionReadinessStatus =
+  | 'awaiting_payment'
+  | 'payment_verified'
+  | 'room_configured'
+  | 'ready_for_session'
+  | 'in_progress'
+  | 'completed';
+
+export interface NutritionistBooking {
+  id: string;
+  nutritionistId: string;
+  nutritionistNameBn: string;
+  nutritionistNameEn: string;
+  nutritionistEmail: string;
+  patientUserId: string;
+  patientName: string;
+  patientEmail: string;
+  patientPhone: string;
+  appointmentDate: string;
+  appointmentSlot: string;
+  healthConcern: string;
+  consultationFeeBdt: number;
+  paymentMethod: PaymentMethodType;
+  senderNumber: string;
+  transactionId: string;
+  paymentId: string;
+  // Bookings go to Admin first ('pending_admin'). Only after Admin approves payment does it become 'confirmed_for_nutritionist'
+  status: 'pending_admin' | 'confirmed_for_nutritionist' | 'completed' | 'rejected';
+  sessionReadiness?: SessionReadinessStatus;
+  paymentStatus?: 'pending' | 'verified' | 'rejected';
+  nutritionistReady?: boolean;
+  patientReady?: boolean;
+  clinicalBriefPrepared?: boolean;
+  durationMinutes?: number;
+  sessionRating?: number;
+  adminNotes?: string;
+  googleMeetLink: string;
+  createdAt: string;
+  approvedAt?: string;
+  updatedAt?: string;
+}
+
+export interface UserNotificationItem {
+  id: string;
+  targetEmail?: string;
+  targetUserId?: string;
+  titleBn: string;
+  titleEn: string;
+  messageBn: string;
+  messageEn: string;
+  type: 'payment_approved' | 'store_approved' | 'food_approved' | 'booking_confirmed' | 'moderation_alert';
+  emailSubject?: string;
+  emailBody?: string;
+  googleMeetLink?: string;
+  createdAt: string;
+  read?: boolean;
+}
+
 
