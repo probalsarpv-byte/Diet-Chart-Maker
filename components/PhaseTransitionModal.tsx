@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { HealthProfile, Language, Phase, PhaseEvaluationRecord } from '../types';
+import { recordPhaseAssessmentProgress } from '../services/platformHubService';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -933,6 +934,19 @@ const PhaseTransitionModal: React.FC<Props> = ({
       unimprovedItems,
       summaryBn,
       summaryEn,
+    });
+
+    void recordPhaseAssessmentProgress({
+      currentPhase: fromPhase,
+      targetPhase,
+      improved,
+      improvementScore: scorePercent / 100,
+      baselineConditions: [profile.medicalConditions || profile.dosha || 'Metabolic'],
+      answers: Object.fromEntries(
+        Object.entries(selectedScores).map(([k, v]) => [k, String(v)])
+      ),
+      recommendationBn: summaryBn,
+      recommendationEn: summaryEn,
     });
   };
 

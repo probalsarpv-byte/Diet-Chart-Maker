@@ -87,14 +87,14 @@ const DietMakerHub: React.FC<Props> = ({
     {
       id: 'checklist',
       icon: ClipboardCheck,
-      titleBn: 'ডেইলি চেক লিস্ট',
-      titleEn: 'Daily Checklist',
+      titleBn: 'ডেইলি চেকলিস্ট, ডায়েট অ্যালার্ম ও পানির রিমাইন্ডার',
+      titleEn: 'Daily Checklist, Diet Alarm & Water Reminder',
       subtitleBn:
-        'প্রতিদিনের খাবার, পানির হিসাব, ওজন, এনার্জি ও হজম শক্তি লগ করুন এবং সাপ্তাহিক ও মাসিক প্রগ্রেস চার্ট দেখুন।',
+        'হ্যাপটিক ভাইব্রেশন সহ ডেইলি চেক-ইন, প্রতি বেলার ফুড মেনু সহ ডায়েট অ্যালার্ম, অটোমেটিক পানির রিমাইন্ডার এবং প্রগ্রেস চার্ট।',
       subtitleEn:
-        'Log daily meals, water intake, weight, energy & digestion, and view daily, weekly, and monthly progress charts.',
-      badgeBn: 'অপশন ৩ • ডেইলি ট্র্যাকার ও প্রগ্রেস চার্ট',
-      badgeEn: 'Option 3 • Daily Tracker & Progress Charts',
+        'Haptic vibration daily check-ins, mealtime alarms with prescribed food menus, smart water reminders, and adherence logs.',
+      badgeBn: 'অপশন ৩ • হ্যাপটিক চেক-ইন, ফুড অ্যালার্ম ও পানির রিমাইন্ডার',
+      badgeEn: 'Option 3 • Haptic Check-in, Food Alarm & Water Reminder',
       iconGradient: 'from-rose-500 via-pink-500 to-fuchsia-600',
       shadowColor: 'shadow-rose-500/30',
       surfaceLight: 'from-rose-50/90 via-white to-pink-50/60 border-rose-200/80 hover:border-rose-400',
@@ -107,9 +107,9 @@ const DietMakerHub: React.FC<Props> = ({
   );
 
   const handleCardClick = (feature: DietMakerFeature) => {
-    if (feature === 'family_pot') {
-      // Family Pot is active only for Family Profiles, while Individual users can always view what Family Pot is and how it works
-      onSelectFeature('family_pot');
+    if (feature === 'family_pot' || feature === 'checklist') {
+      // Family Pot and Daily Checklist (with Diet Alarms & Water Reminder) are accessible directly
+      onSelectFeature(feature);
       return;
     }
     if (!isUnlocked) {

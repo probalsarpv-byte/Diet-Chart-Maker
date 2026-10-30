@@ -523,39 +523,63 @@ export const loadPlatformState = (): PlatformHubState => {
   }
 };
 
-const syncToCloudflareAndFirestore = async (state: PlatformHubState) => {
-  // 1. Sync with Express Server Cloudflare Free-Tier D1/KV Adapter
+let firestoreDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   try {
+    if (auth.currentUser) {
+      const token = await auth.currentUser.getIdToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+  } catch {
+    // Proceed without token
+  }
+  return headers;
+};
+
+const syncToCloudflareAndFirestore = async (state: PlatformHubState) => {
+  // 1. Sync with Express Server Cloudflare Free-Tier D1/KV + Hybrid Relational Adapter
+  try {
+    const headers = await getAuthHeaders();
     await fetch('/api/cloudflare/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ state }),
     });
   } catch {
     // Non-blocking in offline mode
   }
 
-  // 2. Sync with Firestore if user is signed in with Firebase Auth
+  // 2. Debounced Sync with Firestore Spark Free Tier (prevents write quota exhaustion)
   if (auth.currentUser) {
-    const path = 'platform_hub/global_state';
-    try {
-      await setDoc(
-        doc(db, 'platform_hub', 'global_state'),
-        {
-          updatedAt: new Date().toISOString(),
-          updatedByEmail: auth.currentUser.email || 'anonymous',
-          paymentsCount: state.payments.length,
-          storesCount: state.stores.length,
-          foodSuggestionsCount: state.foodSuggestions.length,
-          bookingsCount: state.bookings.length,
-          approvedPremiumEmails: state.approvedPremiumEmails,
-          payloadJson: JSON.stringify(state),
-        },
-        { merge: true }
-      );
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, path);
+    if (firestoreDebounceTimer) {
+      clearTimeout(firestoreDebounceTimer);
     }
+    firestoreDebounceTimer = setTimeout(async () => {
+      if (!auth.currentUser) return;
+      const path = 'platform_hub/global_state';
+      try {
+        await setDoc(
+          doc(db, 'platform_hub', 'global_state'),
+          {
+            updatedAt: new Date().toISOString(),
+            updatedByEmail: (auth.currentUser.email || 'anonymous').slice(0, 250),
+            paymentsCount: state.payments.length,
+            storesCount: state.stores.length,
+            foodSuggestionsCount: state.foodSuggestions.length,
+            bookingsCount: state.bookings.length,
+            approvedPremiumEmails: state.approvedPremiumEmails.slice(0, 500),
+            payloadJson: JSON.stringify(state).slice(0, 940000),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, path);
+      }
+    }, 1200);
   }
 };
 
@@ -1201,6 +1225,8 @@ export const adminUpdateNutritionistDetails = (
       | 'phone'
       | 'email'
       | 'licenseNumber'
+      | 'photoUrl'
+      | 'avatarEmoji'
     >
   >
 ) => {
@@ -1228,6 +1254,30 @@ export const adminUpdateNutritionistDetails = (
       ...prev,
       nutritionists: nextNutritionists,
       bookings: nextBookings,
+    };
+  });
+};
+
+export const updateNutritionistPhoto = (params: {
+  nutritionistId?: string;
+  userEmail?: string;
+  userId?: string;
+  photoUrl: string;
+}) => {
+  savePlatformState((prev) => {
+    const emailLower = params.userEmail?.trim().toLowerCase();
+    const nextNutritionists = prev.nutritionists.map((n) => {
+      const matchById = params.nutritionistId && n.id === params.nutritionistId;
+      const matchByEmail = emailLower && n.email.trim().toLowerCase() === emailLower;
+      const matchByUser = params.userId && n.userId === params.userId;
+      if (matchById || matchByEmail || matchByUser) {
+        return { ...n, photoUrl: params.photoUrl };
+      }
+      return n;
+    });
+    return {
+      ...prev,
+      nutritionists: nextNutritionists,
     };
   });
 };
@@ -1652,3 +1702,85 @@ export default {
   }
 };
 `;
+
+// ============================================================================
+// 7. PATIENT CLINICAL ASSESSMENTS & PHASE PROGRESS LOGS (Hybrid SQL + Firestore)
+// ============================================================================
+
+export const recordPhaseAssessmentProgress = async (params: {
+  userId?: string;
+  userEmail?: string;
+  currentPhase: number;
+  targetPhase: number;
+  improved: boolean;
+  improvementScore: number;
+  baselineConditions: string[];
+  answers: Record<string, string>;
+  recommendationBn?: string;
+  recommendationEn?: string;
+}) => {
+  const assessmentId = `ASSESS-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+  const uid = auth.currentUser?.uid || params.userId || 'USR-ANON';
+  const email = (auth.currentUser?.email || params.userEmail || 'anonymous@precision.com').slice(0, 250);
+  const createdAt = new Date().toISOString();
+
+  const payload = {
+    id: assessmentId,
+    userId: uid.slice(0, 128),
+    userEmail: email,
+    currentPhase: Number(params.currentPhase) || 1,
+    targetPhase: Number(params.targetPhase) || 2,
+    improved: Boolean(params.improved),
+    improvementScore: Math.round((Number(params.improvementScore) || 0) * 100),
+    baselineConditionsJson: JSON.stringify(params.baselineConditions || []).slice(0, 4000),
+    answersJson: JSON.stringify(params.answers || {}).slice(0, 8000),
+    recommendationBn: (
+      params.recommendationBn ||
+      (params.improved
+        ? `অভিনন্দন! আপনার লক্ষণসমূহ উন্নত হওয়ায় ধাপ ${params.targetPhase}-এর ক্লিনিক্যাল ডায়েট চার্ট আনলক হয়েছে।`
+        : `ধাপ ${params.currentPhase}-এর ফলাফল আরও স্থিতিশীল করতে আরও ৩-৫ দিন বর্তমান ধাপ অনুসরণ করুন।`)
+    ).slice(0, 1000),
+    recommendationEn: (
+      params.recommendationEn ||
+      (params.improved
+        ? `Clinical improvement confirmed. Phase ${params.targetPhase} diet protocol unlocked.`
+        : `Continue Phase ${params.currentPhase} protocol for 3-5 additional days to stabilize symptoms.`)
+    ).slice(0, 1000),
+    createdAt,
+  };
+
+  // 1. Sync to Hybrid Relational Endpoint (/api/sql/assessments)
+  try {
+    const headers = await getAuthHeaders();
+    await fetch('/api/sql/assessments', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Non-blocking in offline mode
+  }
+
+  // 2. Sync to Firestore Spark Free Tier if authenticated
+  if (auth.currentUser) {
+    const path = `clinical_assessments/${assessmentId}`;
+    try {
+      await setDoc(doc(db, 'clinical_assessments', assessmentId), {
+        id: payload.id,
+        userId: auth.currentUser.uid,
+        userEmail: (auth.currentUser.email || email).slice(0, 250),
+        currentPhase: payload.currentPhase,
+        targetPhase: payload.targetPhase,
+        improved: payload.improved,
+        improvementScore: payload.improvementScore,
+        answersJson: payload.answersJson,
+        createdAt: payload.createdAt,
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    }
+  }
+
+  return payload;
+};
+

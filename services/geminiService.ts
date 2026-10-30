@@ -25,6 +25,10 @@ import {
   generateComprehensiveTrafficLightGuide,
 } from "../data/bdFoodCompositionDatabase";
 import { redactPromptPII } from "./securityPrivacyService";
+import {
+  enrichChartWithCrossBorderEquivalents,
+  getEffectiveResidenceAndCuisine,
+} from "./crossBorderFoodEquivalenceService";
 
 export interface FoodSafetyVerdict {
   foodName: string;
@@ -671,12 +675,12 @@ export class GeminiService {
         currentWeek,
         lang
       );
-      return MakerCheckerEngine.verifyDietChart(pregChart, profile, lang);
+      const crossBorderPreg = enrichChartWithCrossBorderEquivalents(pregChart, profile, lang);
+      return MakerCheckerEngine.verifyDietChart(crossBorderPreg, profile, lang);
     }
 
-    const locationInfo = profile.location
-      ? `User Location: Lat ${profile.location.latitude}, Lng ${profile.location.longitude}.`
-      : "User Location: Bangladesh / South Asia.";
+    const crossBorderInfo = getEffectiveResidenceAndCuisine(profile);
+    const locationInfo = `Current Residence Country (Climate & Supermarkets): ${crossBorderInfo.residenceProfile.countryNameEn}. Preferred Dietary Cuisine: ${crossBorderInfo.cuisineProfile.cuisineNameEn}.`;
     const targetLang = this.getLangName(lang);
 
     let weatherContext = "";
@@ -835,8 +839,9 @@ export class GeminiService {
     );
 
     const compactPrompt = `
-      Act as a Senior Clinical Functional Medicine Physician & Bangladeshi Metabolic Nutritionist.
+      Act as a Senior Clinical Functional Medicine Physician & Global Cross-Border Nutritionist.
       Patient: Age ${profile.age}, ${profile.gender}, Weight ${profile.weight}kg, Dosha ${profile.dosha}, Conditions: ${profile.medicalConditions || "Metabolic Optimization"}, Meds: ${profile.currentMedicationsList || "None"}.
+      ${locationInfo}
       Phase ${currentPhase} (Week ${currentWeek}), Target Calories: ${totalTargetCalories} kcal (${mealFrequency} meals/day).
       Selected Foods: ${selectedFoodNames.slice(0, 400)}.
       Return ONLY a compact JSON object in ${targetLang}:
@@ -856,7 +861,8 @@ export class GeminiService {
       });
 
       if (!text) {
-        return MakerCheckerEngine.verifyDietChart(baseChart, profile, lang);
+        const crossBorderBase = enrichChartWithCrossBorderEquivalents(baseChart, profile, lang);
+        return MakerCheckerEngine.verifyDietChart(crossBorderBase, profile, lang);
       }
 
       const aiSummary = this.safeParseJson<Partial<DietPhaseChart>>(text, {});
@@ -890,9 +896,11 @@ export class GeminiService {
         hasHypoacidity,
         redFoodsList
       );
-      return MakerCheckerEngine.verifyDietChart(enriched, profile, lang);
+      const crossBorderEnriched = enrichChartWithCrossBorderEquivalents(enriched, profile, lang);
+      return MakerCheckerEngine.verifyDietChart(crossBorderEnriched, profile, lang);
     } catch {
-      return MakerCheckerEngine.verifyDietChart(baseChart, profile, lang);
+      const crossBorderBase = enrichChartWithCrossBorderEquivalents(baseChart, profile, lang);
+      return MakerCheckerEngine.verifyDietChart(crossBorderBase, profile, lang);
     }
   }
 

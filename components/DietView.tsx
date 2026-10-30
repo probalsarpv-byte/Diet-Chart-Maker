@@ -5,15 +5,25 @@ import { WeatherService } from '../services/weatherService';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { translations } from '../i18n';
 import SmartBazaar from './SmartBazaar';
-import { AlertTriangle, ShieldCheck, Sparkles, CheckCircle2, ClipboardCheck, Lock, Crown } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, Sparkles, CheckCircle2, ClipboardCheck, Lock, Crown, FileDown } from 'lucide-react';
 import PregnancyMilestonesDashboard from './PregnancyMilestonesDashboard';
 import ChildDevelopmentMilestones from './ChildDevelopmentMilestones';
 import PhaseTransitionModal from './PhaseTransitionModal';
+import DietChartPdfModal from './DietChartPdfModal';
+import MealSlotPushSchedulerCard from './MealSlotPushSchedulerCard';
+import {
+  syncDietChartAndLogsToServiceWorker,
+  loadCachedDietChartAndLogsFromSW,
+} from '../services/offlineDietCacheService';
 import {
   getUserGeminiAccount,
   subscribeUserGeminiAccount,
   MakerCheckerEngine,
 } from '../services/aiModeService';
+import CrossBorderCuisineBar from './CrossBorderCuisineBar';
+import NutritionalEquivalenceComparisonModal from './NutritionalEquivalenceComparisonModal';
+import { enrichChartWithCrossBorderEquivalents } from '../services/crossBorderFoodEquivalenceService';
+import { loadSavedSmartGeoLocation } from '../services/smartGeoLocationService';
 
 interface Props {
   profile: HealthProfile;
@@ -178,6 +188,8 @@ const DietView: React.FC<Props> = ({
   const [geminiAccount, setGeminiAccount] = useState(getUserGeminiAccount);
   const [showVerificationDetails, setShowVerificationDetails] = useState(false);
   const [pendingTargetPhase, setPendingTargetPhase] = useState<Phase | null>(null);
+  const [showPdfExportModal, setShowPdfExportModal] = useState(false);
+  const [showEquivalenceComparisonModal, setShowEquivalenceComparisonModal] = useState(false);
 
   const unlockedPhases: Phase[] = profile.unlockedPhases?.length
     ? profile.unlockedPhases
@@ -221,15 +233,28 @@ const DietView: React.FC<Props> = ({
   ) => {
     setLoading(true);
     try {
+      const activePhaseToLoad = phaseOverride || currentPhase;
+
+      // If offline, restore cached Diet Chart from Service Worker CacheStorage first
+      // and enrich with the offline cached Local Harvest Seasonal Vegetable Database for Current Country
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const cachedSnap = await loadCachedDietChartAndLogsFromSW();
+        if (cachedSnap?.chart) {
+          setChart(enrichChartWithCrossBorderEquivalents(cachedSnap.chart, customProfile, lang));
+          setCurrentDayIndex(0);
+          setLoading(false);
+          return;
+        }
+      }
+
       let currentWeather = weather;
-      if (!currentWeather && customProfile.location) {
+      if (!currentWeather && customProfile.location && navigator.onLine) {
         currentWeather = await weatherService.getCurrentWeather(
           customProfile.location.latitude,
           customProfile.location.longitude
         );
         setWeather(currentWeather);
       }
-      const activePhaseToLoad = phaseOverride || currentPhase;
       const result = await gemini.analyzeHealthAndPhase(
         customProfile,
         activePhaseToLoad,
@@ -240,8 +265,18 @@ const DietView: React.FC<Props> = ({
       );
       setChart(result);
       setCurrentDayIndex(0);
+      await syncDietChartAndLogsToServiceWorker({
+        chart: result,
+        profile: customProfile,
+        calorieLogs: [],
+        phase: activePhaseToLoad,
+      });
     } catch (error) {
       console.error(error);
+      const cachedSnap = await loadCachedDietChartAndLogsFromSW();
+      if (cachedSnap?.chart) {
+        setChart(enrichChartWithCrossBorderEquivalents(cachedSnap.chart, customProfile, lang));
+      }
     } finally {
       setLoading(false);
     }
@@ -252,7 +287,7 @@ const DietView: React.FC<Props> = ({
       setCurrentWeek(1);
       fetchChart(profile, undefined, 1, currentPhase);
     } else {
-      setChart(initialChart);
+      setChart(enrichChartWithCrossBorderEquivalents(initialChart, profile, lang));
       setLoading(false);
       if (profile.location) {
         weatherService
@@ -689,6 +724,17 @@ const DietView: React.FC<Props> = ({
               🚦 {isBn ? 'ট্রাফিক লাইট গাইড' : 'Food Guide'}
             </button>
           )}
+
+          {chart && (
+            <button
+              type="button"
+              onClick={() => setShowPdfExportModal(true)}
+              className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap shrink-0"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>{isBn ? 'পিডিএফ ডাউনলোড (PDF)' : 'Export PDF'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -765,8 +811,8 @@ const DietView: React.FC<Props> = ({
           <div className="w-14 h-14 border-4 border-slate-800 border-t-emerald-500 rounded-full animate-spin" />
           <p className="font-bold italic animate-pulse opacity-80 text-sm text-center px-4">
             {isBn
-              ? 'ধাপ ১ (Maker): ডায়েট চার্ট তৈরি হচ্ছে → ধাপ ২ (Checker): অ্যাপের জেমিনি দ্বারা ক্লিনিক্যাল ভেরিফিকেশন সম্পন্ন হচ্ছে...'
-              : 'Stage 1 (Maker): Drafting Diet Chart → Stage 2 (Checker): App Gemini Clinical Verification in progress...'}
+              ? 'আপনার ব্যক্তিগতকৃত ডায়েট চার্ট তৈরি হচ্ছে...'
+              : 'Preparing your personalized diet chart...'}
           </p>
         </div>
       ) : chart ? (
@@ -877,82 +923,56 @@ const DietView: React.FC<Props> = ({
                 >
                   {chart.phaseName}
                 </h2>
-                {(() => {
-                  const verification =
-                    chart.verification || MakerCheckerEngine.buildVerificationStamp(profile);
-                  return (
-                    <div className="mt-2.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[11px] font-extrabold">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                          {isBn
-                            ? 'মেকার-চেকার কমপ্লিট: অ্যাপের জেমিনি দ্বারা ভেরিফাইড'
-                            : 'Maker-Checker Complete: Verified by App Gemini'}
-                        </span>
-                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                          {geminiAccount.enabled
-                            ? isBn
-                              ? '• উৎস: আপনার Gemini অ্যাকাউন্ট'
-                              : '• Source: Your Personal Gemini Account'
-                            : isBn
-                            ? '• উৎস: অ্যাপ প্রোফাইল ও ক্লিনিক্যাল চেকার'
-                            : '• Source: App Profile & Clinical Checker'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setShowVerificationDetails((v) => !v)}
-                          className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 underline hover:opacity-80"
-                        >
-                          {showVerificationDetails
-                            ? isBn
-                              ? 'চেকার রিপোর্ট লুকান'
-                              : 'Hide Checker Report'
-                            : isBn
-                            ? 'চেকার রিপোর্ট দেখুন'
-                            : 'View Checker Report'}
-                        </button>
-                      </div>
-                      {showVerificationDetails && (
-                        <div
-                          className={`mt-2 p-3 rounded-2xl border text-[11px] space-y-1 ${
-                            darkMode
-                              ? 'bg-slate-800/70 border-slate-700 text-slate-300'
-                              : 'bg-emerald-50/60 border-emerald-200/70 text-slate-700'
-                          }`}
-                        >
-                          <div className="font-extrabold text-emerald-700 dark:text-emerald-400">
-                            {isBn
-                              ? `${verification.makerLabelBn} ➔ ${verification.checkerLabelBn}`
-                              : `${verification.makerLabelEn} ➔ ${verification.checkerLabelEn}`}
-                          </div>
-                          <ul className="space-y-0.5 pt-1">
-                            {(isBn ? verification.checksPassedBn : verification.checksPassedEn).map(
-                              (chk, idx) => (
-                                <li key={idx} className="flex items-start gap-1.5">
-                                  <span className="text-emerald-500 font-bold">✓</span>
-                                  <span>{chk}</span>
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
               </div>
 
-              {chart.calorieSplitSummary && (
-                <div
-                  className={`px-3.5 py-2 rounded-xl border text-xs font-mono tabular-nums ${
-                    darkMode
-                      ? 'bg-slate-800/70 border-slate-700 text-emerald-300'
-                      : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                  }`}
+              <div className="flex flex-wrap items-center gap-2">
+                {chart.calorieSplitSummary && (
+                  <div
+                    className={`px-3.5 py-2 rounded-xl border text-xs font-mono tabular-nums ${
+                      darkMode
+                        ? 'bg-slate-800/70 border-slate-700 text-emerald-300'
+                        : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                    }`}
+                  >
+                    {chart.calorieSplitSummary}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowPdfExportModal(true)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap shrink-0"
                 >
-                  {chart.calorieSplitSummary}
-                </div>
-              )}
+                  <FileDown className="w-4 h-4" />
+                  <span>
+                    {isBn
+                      ? 'প্রফেশনাল পিডিএফ এক্সপোর্ট (.PDF)'
+                      : 'Export Clinical PDF (.PDF)'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Cross-Border Residence Country vs. Preferred Dietary Cuisine Bar */}
+            <div className="pt-2">
+              <CrossBorderCuisineBar
+                profile={profile}
+                lang={lang}
+                darkMode={darkMode}
+                onUpdateProfile={(updated) => {
+                  onUpdateProfile(updated);
+                }}
+                onPreferencesChanged={(prefs) => {
+                  const updatedProf: HealthProfile = {
+                    ...profile,
+                    residenceCountry: prefs.residenceCountry,
+                    preferredCuisineCountry: prefs.preferredCuisineCountry,
+                    supermarketSubstituteMode: prefs.supermarketSubstituteMode,
+                  };
+                  onUpdateProfile(updatedProf);
+                  fetchChart(updatedProf, undefined, currentWeek);
+                }}
+              />
             </div>
 
             {/* Interactive Clinical Tabs (Eliminates Endless Vertical Scrolling!) */}
@@ -1089,6 +1109,14 @@ const DietView: React.FC<Props> = ({
                   );
                 })()}
 
+                {/* Local Push Notification Scheduler for Diet Chart Meal Slots (Morning, Mid-day, Afternoon, Evening) */}
+                <MealSlotPushSchedulerCard
+                  chart={chart}
+                  profile={profile}
+                  lang={lang}
+                  darkMode={darkMode}
+                />
+
                 <div
                   className={`rounded-3xl border overflow-hidden ${
                     darkMode
@@ -1110,6 +1138,18 @@ const DietView: React.FC<Props> = ({
                             {isBn ? '১ম ও ২য় দিন ফ্রি · ৩য়-৭ম দিন প্রিমিয়াম' : 'Days 1-2 Free · Days 3-7 Premium'}
                           </span>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => setShowPdfExportModal(true)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border flex items-center gap-1 transition-colors whitespace-nowrap ${
+                            darkMode
+                              ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300 hover:bg-emerald-900/60'
+                              : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                          }`}
+                        >
+                          <FileDown className="w-3.5 h-3.5" />
+                          <span>{isBn ? 'পিডিএফ (PDF)' : 'PDF'}</span>
+                        </button>
                       </div>
                       {chart.dinnerCarbStrategy && (
                         <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-0.5">
@@ -1254,6 +1294,92 @@ const DietView: React.FC<Props> = ({
                                     </span>
                                   </>
                                 )}
+                              </div>
+                            )}
+
+                            {meal.localSupermarketSwap && (
+                              <div
+                                className={`mt-3 p-3 rounded-xl border text-xs space-y-1 ${
+                                  darkMode
+                                    ? 'bg-indigo-950/25 border-indigo-500/30 text-indigo-200'
+                                    : 'bg-indigo-50/70 border-indigo-200/80 text-indigo-950'
+                                }`}
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-1 font-bold text-indigo-600 dark:text-indigo-300">
+                                  <span>
+                                    🛒{' '}
+                                    {isBn
+                                      ? `${meal.localSupermarketSwap.residenceCountryLabel}-এর সুপারমার্কেটে সমতুল্য বিকল্প:`
+                                      : `Local Supermarket Equivalent (${meal.localSupermarketSwap.residenceCountryLabel}):`}
+                                  </span>
+                                  <span className="font-mono text-[10px] opacity-80">
+                                    {meal.localSupermarketSwap.supermarketChains}
+                                  </span>
+                                </div>
+                                <p className="leading-relaxed opacity-90">
+                                  {meal.localSupermarketSwap.equivalentItems}
+                                </p>
+                                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                                  <p className="text-[11px] opacity-70 font-mono tabular-nums">
+                                    ✓ {meal.localSupermarketSwap.macroAndGiParityNote}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowEquivalenceComparisonModal(true)}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white transition-all active:scale-95"
+                                  >
+                                    {isBn
+                                      ? '⚖️ ১:১ পুষ্টি সমতা তুলনা দেখুন'
+                                      : '⚖️ Side-by-Side Nutrition Compare'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {meal.localHarvestSeasonalVeg && meal.localHarvestSeasonalVeg.length > 0 && (
+                              <div
+                                className={`mt-2.5 p-3 rounded-xl border text-xs space-y-1.5 ${
+                                  darkMode
+                                    ? 'bg-emerald-950/25 border-emerald-500/30 text-emerald-100'
+                                    : 'bg-emerald-50/70 border-emerald-200/80 text-emerald-950'
+                                }`}
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-1 font-bold text-emerald-700 dark:text-emerald-300">
+                                  <span>
+                                    🌱{' '}
+                                    {isBn
+                                      ? `লোকাল হারভেস্ট মৌসুমি সবজি অগ্রাধিকার (${chart.localHarvestSnapshot?.countryNameBn || ''}):`
+                                      : `Prioritized Local Harvest Seasonal Veg (${chart.localHarvestSnapshot?.countryNameEn || ''}):`}
+                                  </span>
+                                  <span className="font-mono text-[10px] opacity-80">
+                                    {isBn
+                                      ? chart.localHarvestSnapshot?.activeSeasonNameBn
+                                      : chart.localHarvestSnapshot?.activeSeasonNameEn}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                                  {meal.localHarvestSeasonalVeg.map((veg) => (
+                                    <div
+                                      key={veg.id}
+                                      className={`p-2 rounded-lg border text-[11px] tabular-nums ${
+                                        darkMode
+                                          ? 'bg-slate-900/80 border-emerald-800/60'
+                                          : 'bg-white border-emerald-200/80'
+                                      }`}
+                                    >
+                                      <div className="font-bold text-emerald-700 dark:text-emerald-300">
+                                        {isBn ? veg.nameBn : veg.nameEn}
+                                      </div>
+                                      <div className="opacity-80 mt-0.5">
+                                        GI {veg.glycemicIndex} · {veg.fiberPer100g}g Fiber ·{' '}
+                                        {veg.keyMicronutrients}
+                                      </div>
+                                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-0.5">
+                                        {isBn ? veg.heritageEquivalentBn : veg.heritageEquivalentEn}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1532,11 +1658,22 @@ const DietView: React.FC<Props> = ({
                           : 'Clinical Traffic Light Food Exchange Table'}
                       </h3>
                     </div>
-                    {!isPremiumUser && (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                        {isBn ? 'আংশিক প্রিভিউ (১টি ক্যাটাগরি উন্মুক্ত)' : 'Partial Preview (1 Category Shown)'}
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowEquivalenceComparisonModal(true)}
+                        className="px-3.5 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-all active:scale-95"
+                      >
+                        {isBn
+                          ? '⚖️ ১:১ পুষ্টি সমতা তুলনা (Side-by-Side)'
+                          : '⚖️ Compare 1:1 Nutritional Equivalence'}
+                      </button>
+                      {!isPremiumUser && (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          {isBn ? 'আংশিক প্রিভিউ (১টি ক্যাটাগরি উন্মুক্ত)' : 'Partial Preview (1 Category Shown)'}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Visible Food Exchange Rows (All for Premium, First 1 for Free) */}
@@ -1567,6 +1704,36 @@ const DietView: React.FC<Props> = ({
                           </span>
                           <span>{row.yellowSubstitutes?.join(' · ')}</span>
                         </div>
+                        {row.localSupermarketSwap && (
+                          <div className="text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                            <span className="font-bold text-indigo-600 dark:text-indigo-400 block">
+                              🛒{' '}
+                              {isBn
+                                ? `${row.localSupermarketSwap.residenceCountryLabel} সুপারমার্কেট বিকল্প:`
+                                : `${row.localSupermarketSwap.residenceCountryLabel} Supermarket Swap:`}
+                            </span>
+                            <span>{row.localSupermarketSwap.equivalentItems}</span>
+                          </div>
+                        )}
+                        {row.localHarvestSeasonalVeg && row.localHarvestSeasonalVeg.length > 0 && (
+                          <div className="text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400 block">
+                              🌱{' '}
+                              {isBn
+                                ? 'লোকাল হারভেস্ট মৌসুমি সবজি (অগ্রাধিকার):'
+                                : 'Prioritized Local Harvest Seasonal Veg:'}
+                            </span>
+                            <span>
+                              {row.localHarvestSeasonalVeg
+                                .map((v) =>
+                                  isBn
+                                    ? `${v.nameBn} (GI ${v.glycemicIndex})`
+                                    : `${v.nameEn} (GI ${v.glycemicIndex})`
+                                )
+                                .join(' · ')}
+                            </span>
+                          </div>
+                        )}
                         <p className="text-[11px] opacity-75 italic pt-1">{row.clinicalNote}</p>
                       </div>
                     ))}
@@ -1592,7 +1759,7 @@ const DietView: React.FC<Props> = ({
                             {isBn ? '🟡 ইয়েলো জোন বিকল্প (পরিমিত)' : '🟡 Yellow Zone Substitutes'}
                           </th>
                           <th className="py-3 pl-4 font-bold">
-                            {isBn ? 'ক্লিনিক্যাল নির্দেশিকা' : 'Clinical Guidance'}
+                            {isBn ? 'ক্লিনিক্যাল ও স্থানীয় সুপারমার্কেট নির্দেশিকা' : 'Clinical & Local Supermarket Guidance'}
                           </th>
                         </tr>
                       </thead>
@@ -1624,8 +1791,31 @@ const DietView: React.FC<Props> = ({
                                 ))}
                               </ul>
                             </td>
-                            <td className="py-3.5 pl-4 text-xs opacity-80 leading-relaxed">
-                              {row.clinicalNote}
+                            <td className="py-3.5 pl-4 text-xs opacity-85 leading-relaxed space-y-1.5">
+                              <div>{row.clinicalNote}</div>
+                              {row.localSupermarketSwap && (
+                                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-medium">
+                                  <strong>
+                                    🛒 {row.localSupermarketSwap.residenceCountryLabel}:
+                                  </strong>{' '}
+                                  {row.localSupermarketSwap.equivalentItems}
+                                </div>
+                              )}
+                              {row.localHarvestSeasonalVeg &&
+                                row.localHarvestSeasonalVeg.length > 0 && (
+                                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium">
+                                    <strong>
+                                      🌱 {isBn ? 'লোকাল হারভেস্ট সিজনাল:' : 'Local Harvest Seasonal:'}
+                                    </strong>{' '}
+                                    {row.localHarvestSeasonalVeg
+                                      .map((v) =>
+                                        isBn
+                                          ? `${v.nameBn} (GI ${v.glycemicIndex})`
+                                          : `${v.nameEn} (GI ${v.glycemicIndex})`
+                                      )
+                                      .join(' · ')}
+                                  </div>
+                                )}
                             </td>
                           </tr>
                         ))}
@@ -2329,27 +2519,93 @@ const DietView: React.FC<Props> = ({
                 })}
               </div>
 
-              {currentTabIndex < SUB_TABS.length - 1 ? (
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => handleSubTabChange(SUB_TABS[currentTabIndex + 1].id)}
-                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md whitespace-nowrap shrink-0"
+                  onClick={() => setShowPdfExportModal(true)}
+                  className={`px-3 py-2 rounded-xl text-xs font-extrabold border flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                    darkMode
+                      ? 'bg-slate-800 border-emerald-500/40 text-emerald-300 hover:bg-slate-700'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                  }`}
                 >
-                  {isBn
-                    ? `পরবর্তী: ${SUB_TABS[currentTabIndex + 1].labelBn} →`
-                    : `Next: ${SUB_TABS[currentTabIndex + 1].labelEn} →`}
+                  <FileDown className="w-3.5 h-3.5" />
+                  <span>{isBn ? 'পিডিএফ' : 'PDF'}</span>
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleSubTabChange('meals')}
-                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-white whitespace-nowrap shrink-0"
-                >
-                  {isBn ? '🥗 ডায়েট চার্টে ফিরুন' : '🥗 Back to Diet Chart'}
-                </button>
-              )}
+
+                {currentTabIndex < SUB_TABS.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSubTabChange(SUB_TABS[currentTabIndex + 1].id)}
+                    className="px-4 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md whitespace-nowrap shrink-0"
+                  >
+                    {isBn
+                      ? `পরবর্তী: ${SUB_TABS[currentTabIndex + 1].labelBn} →`
+                      : `Next: ${SUB_TABS[currentTabIndex + 1].labelEn} →`}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSubTabChange('meals')}
+                    className="px-4 py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-white whitespace-nowrap shrink-0"
+                  >
+                    {isBn ? '🥗 ডায়েট চার্টে ফিরুন' : '🥗 Back to Diet Chart'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Professional Diet Chart PDF Export & Preview Modal */}
+          {showPdfExportModal && chart && (
+            <DietChartPdfModal
+              isOpen={showPdfExportModal}
+              onClose={() => setShowPdfExportModal(false)}
+              chart={chart}
+              profile={profile}
+              user={user}
+              currentPhase={currentPhase}
+              currentWeek={currentWeek}
+              selectedDayIndex={currentDayIndex}
+              lang={lang}
+              darkMode={darkMode}
+              isPremiumUser={isPremiumUser}
+              onShowPaywall={onShowPaywall}
+            />
+          )}
+
+          {/* Side-by-Side Nutritional Equivalence Comparison Modal */}
+          {showEquivalenceComparisonModal && (
+            <NutritionalEquivalenceComparisonModal
+              isOpen={showEquivalenceComparisonModal}
+              onClose={() => setShowEquivalenceComparisonModal(false)}
+              residenceCountryCode={profile.residenceCountry || 'US'}
+              preferredCuisineCode={profile.preferredCuisineCountry || 'BD'}
+              geoSnapshot={loadSavedSmartGeoLocation()}
+              lang={lang}
+              darkMode={darkMode}
+              onGeoLocationUpdated={(nextGeo) => {
+                const updatedProf: HealthProfile = {
+                  ...profile,
+                  residenceCountry: nextGeo.countryCode,
+                  location: {
+                    latitude: nextGeo.latitude,
+                    longitude: nextGeo.longitude,
+                    cityNameBn: nextGeo.cityNameBn,
+                    cityNameEn: nextGeo.cityNameEn,
+                    countryCode: nextGeo.countryCode,
+                    countryNameBn: nextGeo.countryNameBn,
+                    countryNameEn: nextGeo.countryNameEn,
+                    timezone: nextGeo.timezone,
+                    detectedBy: nextGeo.detectedBy,
+                    updatedAt: nextGeo.updatedAt,
+                  },
+                };
+                onUpdateProfile(updatedProf);
+                fetchChart(updatedProf, undefined, currentWeek);
+              }}
+            />
+          )}
         </div>
       ) : null}
     </div>

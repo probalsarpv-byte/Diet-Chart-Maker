@@ -24,6 +24,8 @@ import {
   Paperclip,
   Wand2,
 } from 'lucide-react';
+import CrossBorderCuisineBar from './CrossBorderCuisineBar';
+import { loadStoredCrossBorderPrefs } from '../services/crossBorderFoodEquivalenceService';
 
 interface Props {
   cohort: CohortType;
@@ -341,6 +343,9 @@ export const CohortAssessmentForm: React.FC<Props> = ({
       analysis: computed.analysis,
       answers: flatAnswers,
       cohortLabMarkers: parsedLabMarkers,
+      residenceCountry: loadStoredCrossBorderPrefs().residenceCountry,
+      preferredCuisineCountry: loadStoredCrossBorderPrefs().preferredCuisineCountry,
+      supermarketSubstituteMode: loadStoredCrossBorderPrefs().supermarketSubstituteMode,
     };
 
     // Attach safety alerts and traffic light guide
@@ -382,6 +387,13 @@ export const CohortAssessmentForm: React.FC<Props> = ({
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-16 animate-in fade-in">
+      {/* Global Residence Location vs. Preferred Food Cuisine Selector */}
+      <CrossBorderCuisineBar
+        profile={null}
+        lang={lang}
+        darkMode={darkMode}
+      />
+
       {/* Top Sticky Summary & Category Tab Navigation */}
       <div
         className={`p-5 sm:p-6 rounded-3xl border shadow-xl ${

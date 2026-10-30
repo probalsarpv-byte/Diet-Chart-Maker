@@ -14,9 +14,17 @@ import {
 import {
   loadPlatformState,
   subscribePlatformState,
+  updateNutritionistPhoto,
 } from '../services/platformHubService';
+import {
+  formatByteSize,
+  CompressedPhotoResult,
+} from '../services/imageCompressionService';
+import { useDeviceLayout as useDeviceSkin } from '../services/deviceSkinService';
+import ProfilePhotoCropModal from './ProfilePhotoCropModal';
+import CrossBorderCuisineBar from './CrossBorderCuisineBar';
 import { signInWithGoogleAccount, signOutGoogleAccount, isAdminEmail } from '../firebase';
-import { CreditCard, ExternalLink, LogOut, Mail, ShieldCheck, Sparkles, Video } from 'lucide-react';
+import { Camera, CreditCard, ExternalLink, LogOut, Mail, ShieldCheck, Sparkles, Upload, Video } from 'lucide-react';
 
 interface Props {
   user: User;
@@ -53,12 +61,16 @@ const ProfileView: React.FC<Props> = ({
 }) => {
   const t = translations[lang];
   const isBn = lang === 'bn';
+  const { isMobileSkin } = useDeviceSkin();
   const [copied, setCopied] = useState(false);
   const [showPortal, setShowPortal] = useState(false);
   const [hubState, setHubState] = useState(() => loadPlatformState());
   const [geminiAccount, setGeminiAccount] = useState<UserGeminiAccountConfig>(() =>
     getUserGeminiAccount()
   );
+  const [doctorPhotoStats, setDoctorPhotoStats] = useState<CompressedPhotoResult | null>(null);
+  const [pendingDoctorPhotoFile, setPendingDoctorPhotoFile] = useState<File | null>(null);
+  const [doctorPhotoMsg, setDoctorPhotoMsg] = useState('');
 
   useEffect(() => {
     const unsub1 = subscribeUserGeminiAccount((cfg) => {
@@ -152,18 +164,18 @@ const ProfileView: React.FC<Props> = ({
     experienceYears: 8,
   };
 
-  // User Gemini Account & Maker-Checker Verification Card (No Free AI / API labels shown)
+  // Clean User Gemini Preference Card (No internal mechanism instructions exposed)
   const renderGeminiAccountCard = () => (
     <div
-      className={`p-5 md:p-6 rounded-[28px] border shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors ${
+      className={`p-4 md:p-5 rounded-[28px] border shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors ${
         darkMode
           ? 'bg-gradient-to-r from-slate-900 via-emerald-950/40 to-teal-950/40 border-emerald-800/50'
           : 'bg-gradient-to-r from-emerald-50/70 via-teal-50/50 to-white border-emerald-200/80'
       }`}
     >
-      <div className="flex items-start gap-3.5">
+      <div className="flex items-center gap-3.5">
         <div
-          className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+          className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
             geminiAccount.enabled
               ? 'bg-emerald-600 text-white'
               : darkMode
@@ -171,29 +183,14 @@ const ProfileView: React.FC<Props> = ({
               : 'bg-white text-emerald-700 border border-emerald-200'
           }`}
         >
-          <Sparkles className="w-6 h-6" />
+          <Sparkles className="w-5 h-5" />
         </div>
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm md:text-base font-extrabold">
-              {isBn
-                ? 'আমার Gemini অ্যাকাউন্ট ব্যবহার করুন'
-                : 'Use My Personal Gemini Account'}
-            </h3>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-500/15 text-teal-600 dark:text-teal-300 border border-teal-500/30">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              {isBn ? 'মেকার-চেকার ভেরিফাইড' : 'Maker-Checker Active'}
-            </span>
-          </div>
-          <p className="text-xs opacity-75 leading-relaxed max-w-2xl">
-            {geminiAccount.enabled
-              ? isBn
-                ? `আপনার Gemini অ্যাকাউন্ট (${user.email || 'সংযুক্ত অ্যাকাউন্ট'}) এখন অ্যাপের সব জায়গায় (ডায়েট চার্ট, চ্যাটবট, ফুড সেফটি, কুকবুক ও ফ্যামিলি পট) ব্যবহৃত হচ্ছে। যেকোনো আউটপুট দেখানোর আগে অ্যাপের জেমিনি ক্লিনিক্যাল চেকার তা ভেরিফাই করে দেখাচ্ছে।`
-                : `Your Gemini account (${user.email || 'Connected Account'}) is active across all app features. Every output is verified by the App's Gemini Clinical Checker before display.`
-              : isBn
-              ? 'আপনি কি আপনার নিজস্ব Gemini অ্যাকাউন্ট ব্যবহার করতে চান? এটি চালু করলে অ্যাপের সব জায়গায় আপনার Gemini ব্যবহৃত হবে এবং প্রতিটি আউটপুট অ্যাপের জেমিনি চেকার দ্বারা ভেরিফাই হয়ে আসবে।'
-              : "Would you like to use your own Gemini account? When enabled, your Gemini account is used everywhere in the app, and every output is verified by the App's Gemini Checker before display."}
-          </p>
+        <div>
+          <h3 className="text-sm md:text-base font-extrabold">
+            {isBn
+              ? 'আপনি কি আপনার নিজস্ব Gemini ব্যবহার করতে চান?'
+              : 'Would you like to use your own Gemini?'}
+          </h3>
         </div>
       </div>
 
@@ -234,31 +231,37 @@ const ProfileView: React.FC<Props> = ({
 
   // Role Switcher Header (3 Profile Types -> 3 Distinct Interfaces)
   const renderRoleSwitcher = () => (
-    <div className="space-y-4">
+    <div className={isMobileSkin ? 'space-y-3' : 'space-y-4'}>
       {renderGeminiAccountCard()}
       <div
-        className={`p-4 md:p-5 rounded-[28px] border shadow-md flex flex-col md:flex-row items-center justify-between gap-4 ${
+        className={`${
+          isMobileSkin ? 'p-3.5 rounded-2xl' : 'p-4 md:p-5 rounded-[28px]'
+        } border shadow-md flex flex-col md:flex-row items-center justify-between gap-3 ${
           darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
         }`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
           <span className="text-xl">🎛️</span>
           <div>
             <h3 className="text-xs md:text-sm font-bold">
               {isBn ? 'প্রোফাইল ইন্টারফেস মোড (৩ ধরনের প্রোফাইল)' : 'Profile Interface Mode (3 Profile Types)'}
             </h3>
-            <p className="text-[11px] opacity-60">
-              {isBn
-                ? 'নিজের জন্য, ফ্যামিলির জন্য অথবা ডাক্তার হিসেবে আপনার ইন্টারফেস দেখুন'
-                : 'Switch between Personal, Family, and Clinical Doctor interfaces'}
-            </p>
+            {!isMobileSkin && (
+              <p className="text-[11px] opacity-60">
+                {isBn
+                  ? 'নিজের জন্য, ফ্যামিলির জন্য অথবা ডাক্তার হিসেবে আপনার ইন্টারফেস দেখুন'
+                  : 'Switch between Personal, Family, and Clinical Doctor interfaces'}
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 w-full md:w-auto">
+        <div className="grid grid-cols-3 gap-1.5 md:gap-2 w-full md:w-auto">
           <button
             onClick={() => handleRoleSwitch('self')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            className={`${
+              isMobileSkin ? 'px-2 py-2.5 text-[11px]' : 'px-4 py-2.5 text-xs'
+            } rounded-2xl font-bold flex items-center justify-center gap-1 transition-all ${
               activeRoleTab === 'self'
                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
                 : darkMode
@@ -267,12 +270,14 @@ const ProfileView: React.FC<Props> = ({
             }`}
           >
             <span>👤</span>
-            <span>{isBn ? 'নিজের জন্য' : 'For Myself'}</span>
+            <span>{isBn ? 'নিজের জন্য' : 'Myself'}</span>
           </button>
 
           <button
             onClick={() => handleRoleSwitch('family')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            className={`${
+              isMobileSkin ? 'px-2 py-2.5 text-[11px]' : 'px-4 py-2.5 text-xs'
+            } rounded-2xl font-bold flex items-center justify-center gap-1 transition-all ${
               activeRoleTab === 'family'
                 ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
                 : darkMode
@@ -281,12 +286,14 @@ const ProfileView: React.FC<Props> = ({
             }`}
           >
             <span>👨‍👩‍👧‍👦</span>
-            <span>{isBn ? 'ফ্যামিলির জন্য' : 'For Family'}</span>
+            <span>{isBn ? 'ফ্যামিলি' : 'Family'}</span>
           </button>
 
           <button
             onClick={() => handleRoleSwitch('doctor')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            className={`${
+              isMobileSkin ? 'px-2 py-2.5 text-[11px]' : 'px-4 py-2.5 text-xs'
+            } rounded-2xl font-bold flex items-center justify-center gap-1 transition-all ${
               activeRoleTab === 'doctor'
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                 : darkMode
@@ -295,7 +302,7 @@ const ProfileView: React.FC<Props> = ({
             }`}
           >
             <span>🩺</span>
-            <span>{isBn ? 'ডাক্তার হিসেবে' : 'As Doctor'}</span>
+            <span>{isBn ? 'ডাক্তার' : 'Doctor'}</span>
           </button>
         </div>
       </div>
@@ -319,23 +326,18 @@ const ProfileView: React.FC<Props> = ({
               <span>{user.email || 'user@precision.com'}</span>
               {user.firebaseUid ? (
                 <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/15 text-emerald-500 font-black">
-                  ✓ {isBn ? 'Google মেইল লগইন সম্পন্ন' : 'Google Logged In'}
+                  ✓ {isBn ? 'Google সাইন ইন সম্পন্ন' : 'Signed In'}
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 font-black">
-                  {isBn ? 'Google লগইন করা হয়নি' : 'Not Logged In with Google'}
-                </span>
-              )}
-              {isAuthenticatedAdmin && (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-indigo-600 text-white font-black">
-                  🛡️ {isBn ? 'অ্যাডমিন অ্যাকাউন্ট আনলকড' : 'Admin Verified'}
+                  {isBn ? 'সাইন ইন করা হয়নি' : 'Not Signed In'}
                 </span>
               )}
             </div>
             <p className="text-[11px] opacity-65">
               {isBn
-                ? 'ইউজার প্রোফাইলে Google মেইল দিয়ে লগইন করুন (অ্যাডমিন ইমেইল দিয়ে লগইন করলেই কেবল অ্যাডমিন ফিচার দৃশ্যমান হবে)'
-                : 'Sign in with Google Mail in User Profile (Admin features unlock exclusively for the Admin Google email)'}
+                ? 'আপনার প্রোফাইল সংরক্ষণে Google অ্যাকাউন্ট দিয়ে সাইন ইন করুন'
+                : 'Sign in with your Google account to sync your profile'}
             </p>
           </div>
         </div>
@@ -348,11 +350,11 @@ const ProfileView: React.FC<Props> = ({
           >
             {user.firebaseUid
               ? isBn
-                ? '🔄 অন্য Google মেইল দিয়ে লগইন'
+                ? '🔄 অন্য Google অ্যাকাউন্ট ব্যবহার করুন'
                 : '🔄 Switch Google Account'
               : isBn
-              ? '🔗 Google Mail দিয়ে লগইন করুন'
-              : '🔗 Sign in with Google Mail'}
+              ? '🔗 Google দিয়ে সাইন ইন করুন'
+              : '🔗 Sign in with Google'}
           </button>
 
           {user.firebaseUid && (
@@ -377,7 +379,7 @@ const ProfileView: React.FC<Props> = ({
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md"
             >
               <CreditCard className="w-3.5 h-3.5" />
-              <span>{isBn ? 'প্রিমিয়াম পেমেন্ট ফর্ম' : 'Manual Payment Form'}</span>
+              <span>{isBn ? 'প্রিমিয়াম প্ল্যান' : 'Premium Plan'}</span>
             </button>
           )}
 
@@ -388,13 +390,13 @@ const ProfileView: React.FC<Props> = ({
               className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold shadow-md flex items-center gap-1.5"
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>{isBn ? 'অ্যাডমিন প্যানেল খুলুন' : 'Open Admin Panel'}</span>
+              <span>{isBn ? 'অ্যাডমিন প্যানেল' : 'Admin Panel'}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Latest Admin Approval Notifications / Emails */}
+      {/* Latest Notifications */}
       {hubState.notifications.length > 0 && (
         <div
           className={`p-4 md:p-5 rounded-[28px] border-2 space-y-2 ${
@@ -407,8 +409,8 @@ const ProfileView: React.FC<Props> = ({
             <Mail className="w-4 h-4" />
             <span>
               {isBn
-                ? 'অ্যাডমিন প্যানেল থেকে প্রাপ্ত অ্যাপ্রুভাল মেইল ও নোটিফিকেশন'
-                : 'Approval Emails & Notifications from Admin Panel'}
+                ? 'নোটিফিকেশন ও আপডেট'
+                : 'Notifications & Updates'}
             </span>
           </div>
           {hubState.notifications.slice(0, 2).map((notif) => (
@@ -443,14 +445,93 @@ const ProfileView: React.FC<Props> = ({
             darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
           }`}
         >
-          <div className="w-24 h-24 md:w-28 md:h-28 rounded-[32px] flex items-center justify-center font-bold text-4xl serif italic shadow-xl bg-blue-600 text-white shrink-0">
-            {prof.fullName[0] || 'D'}
+          <div className="flex flex-col items-center gap-2.5 shrink-0">
+            <label
+              className="relative w-24 h-24 md:w-28 md:h-28 rounded-full flex items-center justify-center font-bold text-4xl serif italic shadow-xl bg-blue-600 text-white overflow-hidden cursor-pointer group border-2 border-blue-400/60"
+              title={isBn ? 'প্রোফাইল ফটো যুক্ত বা ক্রপ করতে ক্লিক করুন' : 'Click to upload & crop profile photo'}
+            >
+              {user.professionalProfile?.photoUrl || user.photoUrl ? (
+                <img
+                  src={user.professionalProfile?.photoUrl || user.photoUrl}
+                  alt={prof.fullName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                prof.fullName[0] || 'D'
+              )}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-extrabold gap-1">
+                <Camera className="w-5 h-5" />
+                <span>{isBn ? 'ফেস ক্রপ' : 'Crop Face'}</span>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setDoctorPhotoMsg('');
+                    setPendingDoctorPhotoFile(file);
+                  }
+                  e.target.value = '';
+                }}
+              />
+            </label>
+
+            <label className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-extrabold cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
+              <Upload className="w-3 h-3" />
+              <span>{isBn ? 'ফটো যুক্ত ও ক্রপ করুন' : 'Upload & Crop Photo'}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setDoctorPhotoMsg('');
+                    setPendingDoctorPhotoFile(file);
+                  }
+                  e.target.value = '';
+                }}
+              />
+            </label>
           </div>
+
+          <ProfilePhotoCropModal
+            file={pendingDoctorPhotoFile}
+            lang={lang}
+            darkMode={darkMode}
+            onCancel={() => setPendingDoctorPhotoFile(null)}
+            onConfirm={(result) => {
+              setPendingDoctorPhotoFile(null);
+              setDoctorPhotoStats(result);
+              if (onUpdateUser) {
+                onUpdateUser({
+                  ...user,
+                  photoUrl: result.dataUrl,
+                  professionalProfile: {
+                    ...prof,
+                    photoUrl: result.dataUrl,
+                  },
+                });
+              }
+              updateNutritionistPhoto({
+                userId: user.id,
+                userEmail: user.email,
+                photoUrl: result.dataUrl,
+              });
+              setDoctorPhotoMsg(
+                isBn
+                  ? '✓ প্রোফাইল ফটো সফলভাবে সংরক্ষিত হয়েছে'
+                  : '✓ Profile photo saved'
+              );
+            }}
+          />
 
           <div className="text-center md:text-left flex-1 space-y-3">
             <div className="flex flex-wrap justify-center md:justify-start items-center gap-2.5">
               <span className="text-[10px] font-black uppercase tracking-widest text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full">
-                🩺 {isBn ? 'ডাক্তার প্রোফাইল ইন্টারফেস' : t.verified_practitioner}
+                🩺 {isBn ? 'ডাক্তার ও নিউট্রিশনিস্ট প্রোফাইল' : t.verified_practitioner}
               </span>
               <button
                 onClick={() => handleCopyId(user.id)}
@@ -469,6 +550,11 @@ const ProfileView: React.FC<Props> = ({
             <p className="text-xs md:text-sm font-bold opacity-60 italic">
               {prof.role} • {prof.specialty} • {prof.institution} ({prof.experienceYears}+ Yrs)
             </p>
+            {doctorPhotoMsg && (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-[11px] font-extrabold">
+                <span>{doctorPhotoMsg}</span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-3 w-full md:w-auto">
@@ -489,7 +575,7 @@ const ProfileView: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* ADMIN-APPROVED TODAY'S CONSULTATION BOOKINGS WITH GOOGLE MEET */}
+        {/* TODAY'S CONSULTATION BOOKINGS WITH GOOGLE MEET */}
         <div
           className={`p-6 md:p-8 rounded-[36px] border-2 space-y-4 ${
             darkMode
@@ -505,8 +591,8 @@ const ProfileView: React.FC<Props> = ({
               <div>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-600 dark:text-emerald-300">
                   {isBn
-                    ? 'অ্যাডমিন ভেরিফাইড অ্যাপয়েন্টমেন্ট • Google Meet'
-                    : 'Admin-Verified Appointments • Google Meet'}
+                    ? 'কনফার্মড অ্যাপয়েন্টমেন্ট • Google Meet'
+                    : 'Confirmed Appointments • Google Meet'}
                 </span>
                 <h3 className="text-lg font-extrabold mt-0.5">
                   {isBn
@@ -653,6 +739,14 @@ const ProfileView: React.FC<Props> = ({
           onClose={() => setShowPortal(false)}
         />
       )}
+
+      {/* Global Residence Location vs. Preferred Food Cuisine Selector */}
+      <CrossBorderCuisineBar
+        profile={profile}
+        lang={lang}
+        darkMode={darkMode}
+        onUpdateProfile={onUpdateProfile}
+      />
 
       {/* Hero Section: Personal Identity & Quick Actions */}
       <div

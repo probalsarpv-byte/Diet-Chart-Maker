@@ -119,8 +119,8 @@ const PaywallModal: React.FC<Props> = ({ onClose, lang, darkMode, featureName, u
               </h2>
               <p className="text-xs text-amber-50/90 mt-0.5">
                 {isBn
-                  ? 'পেমেন্ট ফর্মটি পূরণ করলে তা অ্যাডমিন প্যানেলে যাবে। অ্যাডমিন অ্যাপ্রুভ করার সাথে সাথে আপনার ইমেইলে কনফার্মেশন মেইল যাবে।'
-                  : 'Submit your payment details below. Once approved by the Admin Panel, you will receive an approval confirmation email.'}
+                  ? 'পেমেন্ট সম্পন্ন করে নিচের ফর্মটি পূরণ করুন। যাচাই শেষে আপনার ইমেইলে কনফার্মেশন পাঠানো হবে।'
+                  : 'Complete your payment and submit the form below to activate your subscription.'}
               </p>
             </div>
           </div>
@@ -134,17 +134,17 @@ const PaywallModal: React.FC<Props> = ({ onClose, lang, darkMode, featureName, u
 
             <div className="space-y-2">
               <span className="px-3.5 py-1 rounded-full text-xs font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
-                {isBn ? 'অ্যাডমিন প্যানেলে জমা হয়েছে' : 'Sent to Admin Panel Queue'}
+                {isBn ? 'সফলভাবে জমা হয়েছে' : 'Payment Submitted'}
               </span>
               <h3 className="text-2xl font-extrabold">
                 {isBn
-                  ? 'আপনার পেমেন্ট তথ্য সফলভাবে অ্যাডমিন প্যানেলে পাঠানো হয়েছে!'
-                  : 'Your Payment Details Have Been Sent to the Admin Panel!'}
+                  ? 'আপনার পেমেন্ট তথ্য সফলভাবে জমা হয়েছে!'
+                  : 'Your Payment Details Have Been Submitted!'}
               </h3>
               <p className="text-xs md:text-sm opacity-75 max-w-lg mx-auto leading-relaxed">
                 {isBn
-                  ? `ট্রানজেকশন আইডি (${transactionId.toUpperCase()}) যাচাই করে অ্যাডমিন প্যানেল থেকে অ্যাপ্রুভ করার সাথে সাথে আপনার "${userEmail}" ইমেইলে একটি কনফার্মেশন মেইল যাবে যে আপনি এখন প্রিমিয়াম সাবস্ক্রাইবার।`
-                  : `Once Admin verifies Transaction ID (${transactionId.toUpperCase()}) and approves it, an email will be sent to "${userEmail}" confirming that you are now a Premium Subscriber.`}
+                  ? `ট্রানজেকশন আইডি (${transactionId.toUpperCase()}) যাচাই শেষে আপনার "${userEmail}" ইমেইলে প্রিমিয়াম সাবস্ক্রিপশন কনফার্মেশন পাঠানো হবে।`
+                  : `Once Transaction ID (${transactionId.toUpperCase()}) is verified, a confirmation email will be sent to "${userEmail}".`}
               </p>
             </div>
 
@@ -345,8 +345,8 @@ const PaywallModal: React.FC<Props> = ({ onClose, lang, darkMode, featureName, u
                 <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>
                   {isBn
-                    ? 'অ্যাডমিন প্যানেল অ্যাপ্রুভ করলেই আপনার ইমেইলে প্রিমিয়াম কনফার্মেশন মেইল যাবে।'
-                    : 'Admin approval automatically sends your Premium confirmation email.'}
+                    ? 'পেমেন্ট যাচাই সম্পন্ন হলে আপনার ইমেইলে প্রিমিয়াম কনফার্মেশন পাঠানো হবে।'
+                    : 'Your Premium confirmation email will be sent upon payment verification.'}
                 </span>
               </div>
 

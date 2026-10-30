@@ -23,6 +23,7 @@ export interface ProfessionalProfile {
   specialty: string;
   institution: string;
   experienceYears: number;
+  photoUrl?: string;
 }
 
 export type ProfileRoleType = 'self' | 'family' | 'doctor';
@@ -211,6 +212,56 @@ export interface FatOilAllocation {
   clinicalInstruction: string;
 }
 
+export type CrossBorderSubstitutionMode =
+  | 'show_equivalents'
+  | 'ethnic_frozen_only'
+  | 'hybrid';
+
+export interface CrossBorderSupermarketSwap {
+  residenceCountryCode: string;
+  residenceCountryLabel: string;
+  preferredCuisineCode: string;
+  preferredCuisineLabel: string;
+  equivalentItems: string;
+  supermarketChains: string;
+  ethnicStoreGuide: string;
+  macroAndGiParityNote: string;
+  availabilityType: 'mainstream_fresh' | 'ethnic_frozen' | 'hybrid_swap';
+}
+
+export interface LocalHarvestVegetableItem {
+  id: string;
+  nameBn: string;
+  nameEn: string;
+  localMarketName: string;
+  category: 'leafy_green' | 'gourd_squash' | 'cruciferous' | 'root_allium' | 'pod_herb';
+  glycemicIndex: number;
+  fiberPer100g: number;
+  keyMicronutrients: string;
+  clinicalBenefitBn: string;
+  clinicalBenefitEn: string;
+  heritageEquivalentBn: string;
+  heritageEquivalentEn: string;
+  peakMonths: number[]; // 1..12
+}
+
+export interface LocalHarvestCountrySeasonSnapshot {
+  countryCode: string;
+  countryNameBn: string;
+  countryNameEn: string;
+  flag: string;
+  hemisphere: 'Northern' | 'Southern' | 'Tropical';
+  activeSeasonCode: 'Spring' | 'Summer' | 'Monsoon_Autumn' | 'Winter';
+  activeSeasonNameBn: string;
+  activeSeasonNameEn: string;
+  currentMonth: number;
+  harvestHighlightBn: string;
+  harvestHighlightEn: string;
+  prioritizedVegetables: LocalHarvestVegetableItem[];
+  allCountryHarvestVegetables: LocalHarvestVegetableItem[];
+  cachedAt: string;
+}
+
 export interface FoodExchangeRow {
   category: string;
   primaryFood: string;
@@ -218,6 +269,8 @@ export interface FoodExchangeRow {
   greenSubstitutes: string[];
   yellowSubstitutes: string[];
   clinicalNote: string;
+  localSupermarketSwap?: CrossBorderSupermarketSwap;
+  localHarvestSeasonalVeg?: LocalHarvestVegetableItem[];
 }
 
 export interface DetoxWaterItem {
@@ -262,7 +315,19 @@ export interface HealthProfile {
   location?: {
     latitude: number;
     longitude: number;
+    cityNameBn?: string;
+    cityNameEn?: string;
+    countryCode?: string;
+    countryNameBn?: string;
+    countryNameEn?: string;
+    timezone?: string;
+    detectedBy?: 'gps_live' | 'timezone_smart' | 'manual_city' | 'cached_offline';
+    updatedAt?: string;
   };
+  // Cross-Border Residence Country vs. Preferred Dietary Cuisine
+  residenceCountry?: string;
+  preferredCuisineCountry?: string;
+  supermarketSubstituteMode?: CrossBorderSubstitutionMode;
   // Customizations from Traffic Light Food Guide
   trafficLightGuide?: TrafficLightGuide;
   selectedFoods?: string[];
@@ -450,6 +515,8 @@ export interface Meal {
     carbSourceType?: string;
   };
   benefits: string[];
+  localSupermarketSwap?: CrossBorderSupermarketSwap;
+  localHarvestSeasonalVeg?: LocalHarvestVegetableItem[];
 }
 
 export interface DailyPlan {
@@ -539,6 +606,17 @@ export interface DietPhaseChart {
   dailyCalorieTarget?: number;
   SampleDay?: any;
   verification?: MakerCheckerVerification;
+  crossBorderContext?: {
+    residenceCountryCode: string;
+    residenceCountryLabel: string;
+    preferredCuisineCode: string;
+    preferredCuisineLabel: string;
+    supermarketChains: string;
+    climateMetabolicNote: string;
+    isCrossBorder: boolean;
+    mode: CrossBorderSubstitutionMode;
+  };
+  localHarvestSnapshot?: LocalHarvestCountrySeasonSnapshot;
 }
 
 export interface DinacharyaActivity {
@@ -760,6 +838,7 @@ export interface NutritionistProfileListing {
   bioBn: string;
   bioEn: string;
   avatarEmoji: string;
+  photoUrl?: string;
   rating: number;
   reviewsCount: number;
   status: 'pending' | 'approved' | 'rejected';

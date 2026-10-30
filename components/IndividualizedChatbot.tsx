@@ -47,6 +47,9 @@ interface IndividualizedChatbotProps {
   todayLog?: DailyCalorieLog | null;
   hasRealProfile?: boolean;
   mode?: 'embedded' | 'floating';
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideFloatingTrigger?: boolean;
   onOpenFullView?: () => void;
   onStartAssessment?: () => void;
 }
@@ -60,11 +63,19 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
   todayLog = null,
   hasRealProfile = true,
   mode = 'embedded',
+  isOpen: controlledIsOpen,
+  onOpenChange,
+  hideFloatingTrigger = false,
   onOpenFullView,
   onStartAssessment,
 }) => {
   const [chatLang, setChatLang] = useState<Language>(lang === 'bn' ? 'bn' : 'en');
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+  const setIsOpen = (nextOpen: boolean) => {
+    setInternalIsOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
   const [activeTab, setActiveTab] = useState<'chat' | 'food_check'>('chat');
   const [userGeminiAccount, setUserGeminiAccountState] = useState<UserGeminiAccountConfig>(() =>
     getUserGeminiAccount()
@@ -135,7 +146,7 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
         sender: 'ai',
         timestamp: new Date(),
         verification: initialVerification,
-        text: `আসসালামু আলাইকুম! আমি আপনার **ব্যক্তিগতকৃত AI নিউট্রিশন ও ক্লিনিক্যাল কোচ**।\n\nআপনার বর্তমান প্রোফাইল (**${profile.dosha} দোষ**, BMI **${bmi}**, **${getCohortBadgeText()}**, দৈনিক লক্ষ্যমাত্রা **${targetCals} kcal**${loggedCals ? `, আজ গ্রহণ করেছেন **${loggedCals} kcal**` : ''}) অনুযায়ী আমি আপনাকে শতভাগ ব্যক্তিগতকৃত পরামর্শ দিতে প্রস্তুত।\n\nপ্রতিটি পরামর্শ আপনার কাছে দেখানোর আগে **অ্যাপের জেমিনি ক্লিনিক্যাল চেকার (Maker-Checker)** দ্বারা স্বয়ংক্রিয়ভাবে ভেরিফাই করা হয়।`,
+        text: `আসসালামু আলাইকুম! আমি আপনার **ব্যক্তিগতকৃত AI নিউট্রিশন ও ক্লিনিক্যাল কোচ**।\n\nআপনার বর্তমান প্রোফাইল (**${profile.dosha} দোষ**, BMI **${bmi}**, **${getCohortBadgeText()}**, দৈনিক লক্ষ্যমাত্রা **${targetCals} kcal**${loggedCals ? `, আজ গ্রহণ করেছেন **${loggedCals} kcal**` : ''}) অনুযায়ী আপনাকে ব্যক্তিগতকৃত পুষ্টি পরামর্শ দিতে প্রস্তুত।`,
       };
     }
 
@@ -144,7 +155,7 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
       sender: 'ai',
       timestamp: new Date(),
       verification: initialVerification,
-      text: `Hello! I am your **Individualized AI Nutrition & Clinical Coach**.\n\nSynchronized with your live profile (**${profile.dosha} Dosha**, BMI **${bmi}**, **${getCohortBadgeText()}**, Daily Target **${targetCals} kcal**${loggedCals ? `, Logged Today: **${loggedCals} kcal**` : ''}).\n\nEvery output is verified through our **Maker-Checker Clinical Pipeline** before being displayed to you.`,
+      text: `Hello! I am your **Individualized AI Nutrition & Clinical Coach**.\n\nSynchronized with your live profile (**${profile.dosha} Dosha**, BMI **${bmi}**, **${getCohortBadgeText()}**, Daily Target **${targetCals} kcal**${loggedCals ? `, Logged Today: **${loggedCals} kcal**` : ''}).`,
     };
   };
 
@@ -420,40 +431,17 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
     : 755;
   const targetCalories = currentChart?.dailyCalorieTarget || todayLog?.targetCalories || 1650;
 
-  // Floating button when closed in floating mode (No Free AI or API labels exposed)
+  // When controlled from the footer dock, do not render any floating button over screen text
   if (mode === 'floating' && !isOpen) {
-    return (
-      <div className="fixed bottom-24 right-4 sm:bottom-6 sm:right-6 z-50">
-        <button
-          onClick={() => setIsOpen(true)}
-          className="group flex items-center gap-3 pl-3.5 pr-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-xl shadow-emerald-900/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 transition-all border border-white/20"
-          title={isBn ? 'ব্যক্তিগতকৃত AI নিউট্রিশন চ্যাটবট' : 'Individualized AI Nutrition Coach'}
-        >
-          <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center shrink-0">
-            <Bot className="w-5 h-5 text-white" />
-          </div>
-          <div className="text-left">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-extrabold tracking-tight">
-                {isBn ? 'AI নিউট্রিশন কোচ' : 'AI Nutrition Coach'}
-              </span>
-              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-white/20 text-white flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" />
-                {isBn ? 'চেকার ভেরিফাইড' : 'Verified'}
-              </span>
-            </div>
-            <p className="text-[11px] text-emerald-50/90 font-medium max-w-[175px] truncate">
-              {getCohortBadgeText()}
-            </p>
-          </div>
-        </button>
-      </div>
-    );
+    if (hideFloatingTrigger) {
+      return null;
+    }
+    return null;
   }
 
   const containerClasses =
     mode === 'floating'
-      ? `fixed bottom-20 right-3 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[450px] max-h-[84vh] flex flex-col rounded-3xl shadow-2xl border overflow-hidden transition-all ${
+      ? `fixed bottom-20 right-3 sm:bottom-20 sm:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[440px] max-h-[80vh] flex flex-col rounded-3xl shadow-2xl border overflow-hidden transition-all ${
           darkMode
             ? 'bg-slate-900 border-slate-700/80 text-white'
             : 'bg-white border-slate-200 text-slate-900'
@@ -480,15 +468,11 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
                     ? 'ব্যক্তিগতকৃত AI নিউট্রিশন ও ক্লিনিক্যাল চ্যাটবট'
                     : 'Individualized AI Nutrition & Clinical Coach'}
                 </h3>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-teal-500/20 text-teal-200 border border-teal-400/30 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-teal-300" />
-                  {isBn ? 'মেকার-চেকার ভেরিফাইড' : 'Maker-Checker Verified'}
-                </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
                 {isBn
-                  ? 'আপনার প্রোফাইল অনুযায়ী উত্তর — অ্যাপের জেমিনি চেকার দ্বারা যাচাইকৃত'
-                  : "Personalized answers verified by the App's Gemini Clinical Checker"}
+                  ? 'আপনার শারীরিক প্রোফাইল ও ডায়েট চার্ট অনুযায়ী ব্যক্তিগতকৃত পরামর্শ'
+                  : 'Personalized guidance tailored to your health profile and diet chart'}
               </p>
             </div>
           </div>
@@ -537,7 +521,7 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
           </div>
         </div>
 
-        {/* Single Clean Option: Use My Gemini Account Toggle (Applies Everywhere in App) */}
+        {/* Single Clean Option: Use My Gemini Toggle */}
         <div className="mt-3 p-2.5 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <div
@@ -552,17 +536,8 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
             <div className="min-w-0">
               <div className="text-xs font-extrabold text-white truncate">
                 {isBn
-                  ? 'আমার Gemini অ্যাকাউন্ট ব্যবহার করুন'
-                  : 'Use My Personal Gemini Account'}
-              </div>
-              <div className="text-[10px] text-emerald-200/90 truncate">
-                {userGeminiAccount.enabled
-                  ? isBn
-                    ? 'চালু আছে: সব জায়গায় আপনার Gemini ব্যবহৃত হচ্ছে + অ্যাপের জেমিনি চেকার ভেরিফাই করছে'
-                    : "Active everywhere: Using your Gemini + verified by App's Gemini Checker"
-                  : isBn
-                  ? 'চালু করলে অ্যাপের সব জায়গায় আপনার Gemini ব্যবহৃত হবে (চেকার ভেরিফিকেশনসহ)'
-                  : 'Turn on to use your Gemini account across all app features'}
+                  ? 'আপনি কি আপনার নিজস্ব Gemini ব্যবহার করতে চান?'
+                  : 'Would you like to use your own Gemini?'}
               </div>
             </div>
           </div>
@@ -768,90 +743,12 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
                     )}
 
                     <div className="space-y-1">{renderFormattedText(msg.text)}</div>
-
-                    {/* Maker-Checker Verification Stamp on AI Responses */}
-                    {!isUser && msg.verification && (
-                      <div
-                        className={`mt-3 pt-2.5 border-t text-[11px] ${
-                          darkMode ? 'border-slate-700/80' : 'border-slate-200/70'
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedVerificationId(isExpanded ? null : msgId)
-                          }
-                          className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl font-bold transition-colors ${
-                            darkMode
-                              ? 'bg-teal-950/60 text-teal-300 border border-teal-800/60 hover:bg-teal-900/50'
-                              : 'bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100/70'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5 text-left">
-                            <ShieldCheck className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                            <span>
-                              {isBn
-                                ? '✓ মেকার-চেকার ভেরিফাইড (অ্যাপের জেমিনি দ্বারা যাচাইকৃত)'
-                                : "✓ Maker-Checker Verified (Audited by App's Gemini)"}
-                            </span>
-                          </div>
-                          {isExpanded ? (
-                            <ChevronUp className="w-3.5 h-3.5 shrink-0" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5 shrink-0" />
-                          )}
-                        </button>
-
-                        {isExpanded && (
-                          <div
-                            className={`mt-2 p-2.5 rounded-xl space-y-1.5 text-[11px] ${
-                              darkMode
-                                ? 'bg-slate-900/80 text-slate-300 border border-slate-700'
-                                : 'bg-slate-50 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between text-[10px] font-bold opacity-80">
-                              <span>
-                                {isBn ? 'মেকার (Maker): ' : 'Maker: '}
-                                {isBn
-                                  ? msg.verification.makerLabelBn
-                                  : msg.verification.makerLabelEn}
-                              </span>
-                              <span>
-                                {isBn ? 'চেকার (Checker): ' : 'Checker: '}
-                                {isBn
-                                  ? msg.verification.checkerLabelBn
-                                  : msg.verification.checkerLabelEn}
-                              </span>
-                            </div>
-                            <ul className="space-y-1 pt-1">
-                              {(isBn
-                                ? msg.verification.checksPassedBn
-                                : msg.verification.checksPassedEn
-                              ).map((chk, cIdx) => (
-                                <li key={cIdx} className="flex items-start gap-1.5">
-                                  <span className="text-emerald-500 font-bold">✓</span>
-                                  <span>{chk}</span>
-                                </li>
-                              ))}
-                            </ul>
-                            {msg.verification.sanitizedItemsCount > 0 && (
-                              <div className="pt-1 text-amber-500 font-semibold">
-                                {isBn
-                                  ? msg.verification.sanitizationNoteBn
-                                  : msg.verification.sanitizationNoteEn}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
               );
             })}
 
-            {/* Live Two-Stage Maker -> Checker Progress Indicator */}
+            {/* Clean Progress Indicator */}
             {isSending && (
               <div className="flex justify-start">
                 <div
@@ -864,21 +761,10 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
                   <div className="flex items-center gap-2">
                     <RefreshCw className="w-4 h-4 animate-spin text-emerald-500 shrink-0" />
                     <span className="font-bold">
-                      {pipelineStage === 'maker'
-                        ? isBn
-                          ? 'ধাপ ১/২ (Maker): আপনার প্রোফাইল অনুযায়ী উত্তর তৈরি হচ্ছে...'
-                          : 'Step 1/2 (Maker): Generating individualized draft...'
-                        : isBn
-                        ? 'ধাপ ২/২ (Checker): অ্যাপের জেমিনি আউটপুট ভেরিফাই করছে...'
-                        : "Step 2/2 (Checker): App's Gemini verifying clinical safety..."}
+                      {isBn
+                        ? 'আপনার প্রোফাইল অনুযায়ী উত্তর তৈরি হচ্ছে...'
+                        : 'Preparing your personalized response...'}
                     </span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                    <div
-                      className={`h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300 ${
-                        pipelineStage === 'maker' ? 'w-1/2' : 'w-full'
-                      }`}
-                    />
                   </div>
                 </div>
               </div>
@@ -935,8 +821,8 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {isBn
-                ? `আপনার ${profile.dosha} দোষ, ${getCohortBadgeText()} এবং ট্রাফিক লাইট গাইড অনুযায়ী যেকোনো খাবারের Green/Yellow/Red স্ট্যাটাস ও বিকল্প জানুন (মেকার-চেকার ভেরিফাইড)।`
-                : `Checks how any food interacts with your ${profile.dosha} Dosha, ${getCohortBadgeText()}, and glycemic targets (Maker-Checker Verified).`}
+                ? `আপনার ${profile.dosha} দোষ, ${getCohortBadgeText()} এবং ট্রাফিক লাইট গাইড অনুযায়ী যেকোনো খাবারের Green/Yellow/Red স্ট্যাটাস ও বিকল্প জানুন।`
+                : `Checks how any food interacts with your ${profile.dosha} Dosha, ${getCohortBadgeText()}, and glycemic targets.`}
             </p>
           </div>
 
@@ -969,13 +855,9 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
               className="px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm whitespace-nowrap transition-all shrink-0"
             >
               {isCheckingFood
-                ? pipelineStage === 'maker'
-                  ? isBn
-                    ? '১/২ মেকার...'
-                    : '1/2 Maker...'
-                  : isBn
-                  ? '২/২ চেকার...'
-                  : '2/2 Checker...'
+                ? isBn
+                  ? 'যাচাই হচ্ছে...'
+                  : 'Checking...'
                 : isBn
                 ? 'যাচাই করুন'
                 : 'Check Food'}
@@ -1083,65 +965,6 @@ export const IndividualizedChatbot: React.FC<IndividualizedChatbotProps> = ({
                   </div>
                 </div>
               </div>
-
-              {/* Maker-Checker Verification Stamp on Food Verdict */}
-              {foodVerdict.verification && (
-                <div className="pt-2 border-t border-black/10 dark:border-white/10 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setShowFoodCheckVerification((prev) => !prev)}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl font-bold ${
-                      darkMode
-                        ? 'bg-slate-900/80 text-teal-300 border border-teal-800/60'
-                        : 'bg-white/90 text-teal-800 border border-teal-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                      <span>
-                        {isBn
-                          ? '✓ মেকার-চেকার কমপ্লিট: অ্যাপের জেমিনি দ্বারা ভেরিফাইড'
-                          : "✓ Maker-Checker Complete: Verified by App's Gemini"}
-                      </span>
-                    </div>
-                    {showFoodCheckVerification ? (
-                      <ChevronUp className="w-3.5 h-3.5" />
-                    ) : (
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-
-                  {showFoodCheckVerification && (
-                    <div
-                      className={`mt-2 p-2.5 rounded-xl space-y-1 ${
-                        darkMode ? 'bg-slate-900/90 text-slate-300' : 'bg-white/90 text-slate-700'
-                      }`}
-                    >
-                      <div className="flex justify-between text-[10px] font-bold opacity-75">
-                        <span>
-                          {isBn
-                            ? foodVerdict.verification.makerLabelBn
-                            : foodVerdict.verification.makerLabelEn}
-                        </span>
-                        <span>
-                          {isBn
-                            ? foodVerdict.verification.checkerLabelBn
-                            : foodVerdict.verification.checkerLabelEn}
-                        </span>
-                      </div>
-                      {(isBn
-                        ? foodVerdict.verification.checksPassedBn
-                        : foodVerdict.verification.checksPassedEn
-                      ).map((chk, idx) => (
-                        <div key={idx} className="flex items-start gap-1.5">
-                          <span className="text-emerald-500 font-bold">✓</span>
-                          <span>{chk}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div className="pt-1 flex justify-end">
                 <button

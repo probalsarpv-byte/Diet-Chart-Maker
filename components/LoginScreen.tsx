@@ -82,7 +82,7 @@ const LoginScreen: React.FC<Props> = ({
           </h2>
           <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
             {isBn
-              ? 'আপনার Google Account (Firebase Auth) দিয়ে প্রোফাইল ও ডাটাবেস যুক্ত করুন'
+              ? 'আপনার Google অ্যাকাউন্ট দিয়ে সাইন ইন করুন'
               : t.login_subtitle}
           </p>
         </div>
@@ -147,7 +147,9 @@ const LoginScreen: React.FC<Props> = ({
             darkMode ? 'text-slate-500' : 'text-slate-400'
           }`}
         >
-          Secure clinical data protection powered by Firebase Auth & Cloudflare D1 Free Tier.
+          {isBn
+            ? 'আপনার স্বাস্থ্য ও প্রোফাইল তথ্য সম্পূর্ণ নিরাপদ ও গোপনীয়।'
+            : 'Your clinical health profile and personal data are kept private and secure.'}
         </p>
       </div>
     </div>

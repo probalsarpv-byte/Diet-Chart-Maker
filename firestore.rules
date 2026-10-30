@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ===============================================================
-    // MANDATORY DEFAULT-DENY CATCH-ALL (PILLAR 7)
+    // MANDATORY DEFAULT-DENY CATCH-ALL
     // ===============================================================
     match /{document=**} {
       allow read, write: if false;
@@ -14,6 +14,10 @@ service cloud.firestore {
     // ===============================================================
     function isAuthenticated() {
       return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isAuthenticated() && request.auth.token.email_verified == true;
     }
 
     function incoming() {
@@ -37,15 +41,15 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && (
-        (request.auth.token.email == 'ramkrisna97@gmail.com' && request.auth.token.email_verified == true) ||
+      return isVerifiedUser() && (
+        request.auth.token.email == 'ramkrisna97@gmail.com' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
     // ===============================================================
-    // ENTITY VALIDATION HELPERS (PILLAR 3)
+    // ENTITY VALIDATION HELPERS
     // ===============================================================
     function isValidPlatformHubState(data) {
       let requiredFields = ['updatedAt', 'updatedByEmail', 'payloadJson'];
@@ -68,7 +72,11 @@ service cloud.firestore {
              (!('storesCount' in data) || (data.storesCount is int && data.storesCount >= 0 && data.storesCount <= 100000)) &&
              (!('foodSuggestionsCount' in data) || (data.foodSuggestionsCount is int && data.foodSuggestionsCount >= 0 && data.foodSuggestionsCount <= 100000)) &&
              (!('bookingsCount' in data) || (data.bookingsCount is int && data.bookingsCount >= 0 && data.bookingsCount <= 100000)) &&
-             (!('approvedPremiumEmails' in data) || (data.approvedPremiumEmails is list && data.approvedPremiumEmails.size() <= 500));
+             (!('approvedPremiumEmails' in data) || (
+               data.approvedPremiumEmails is list &&
+               data.approvedPremiumEmails.size() <= 500 &&
+               (data.approvedPremiumEmails.size() == 0 || (data.approvedPremiumEmails[0] is string && data.approvedPremiumEmails[0].size() <= 254))
+             ));
     }
 
     function isValidUser(data) {
@@ -86,16 +94,42 @@ service cloud.firestore {
              (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() >= 10 && data.updatedAt.size() <= 64));
     }
 
+    function isValidClinicalAssessment(data) {
+      let requiredFields = [
+        'id',
+        'userId',
+        'userEmail',
+        'currentPhase',
+        'targetPhase',
+        'improved',
+        'improvementScore',
+        'answersJson',
+        'createdAt'
+      ];
+      return data.keys().hasAll(requiredFields) &&
+             data.keys().hasOnly(requiredFields) &&
+             isValidId(data.id) &&
+             isValidId(data.userId) &&
+             isValidEmail(data.userEmail) &&
+             data.currentPhase is int && data.currentPhase >= 1 && data.currentPhase <= 4 &&
+             data.targetPhase is int && data.targetPhase >= 1 && data.targetPhase <= 4 &&
+             data.improved is bool &&
+             data.improvementScore is int && data.improvementScore >= 0 && data.improvementScore <= 100 &&
+             data.answersJson is string && data.answersJson.size() >= 2 && data.answersJson.size() <= 8000 &&
+             data.createdAt is string && data.createdAt.size() >= 10 && data.createdAt.size() <= 64;
+    }
+
     // ===============================================================
     // COLLECTION RULES
     // ===============================================================
     match /platform_hub/{docId} {
-      allow read: if isValidId(docId) && isAuthenticated();
-      allow create: if isValidId(docId) &&
-                    isAuthenticated() &&
+      allow get: if isAuthenticated() && isValidId(docId);
+      allow list: if isAuthenticated() && existing().updatedByEmail is string;
+      allow create: if isVerifiedUser() &&
+                    isValidId(docId) &&
                     isValidPlatformHubState(incoming());
-      allow update: if isValidId(docId) &&
-                    isAuthenticated() &&
+      allow update: if isVerifiedUser() &&
+                    isValidId(docId) &&
                     isValidPlatformHubState(incoming()) &&
                     incoming().diff(existing()).affectedKeys().hasOnly([
                       'updatedAt',
@@ -114,13 +148,16 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isValidId(userId) && (isOwner(userId) || isAdmin());
-      allow create: if isValidId(userId) &&
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAuthenticated() && existing().uid == request.auth.uid;
+      allow create: if isVerifiedUser() &&
+                    isValidId(userId) &&
                     isOwner(userId) &&
                     isValidUser(incoming()) &&
                     incoming().uid == userId &&
                     ((incoming().role == 'user' && (!('isSubscribed' in incoming()) || incoming().isSubscribed == false)) || isAdmin());
-      allow update: if isValidId(userId) &&
+      allow update: if isVerifiedUser() &&
+                    isValidId(userId) &&
                     isValidUser(incoming()) &&
                     incoming().uid == existing().uid &&
                     ((isOwner(userId) &&
@@ -128,6 +165,29 @@ service cloud.firestore {
                       incoming().role == existing().role &&
                       incoming().email == existing().email) || isAdmin());
       allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+    }
+
+    match /clinical_assessments/{assessmentId} {
+      allow get: if isValidId(assessmentId) &&
+                 isAuthenticated() &&
+                 (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() &&
+                    isValidId(assessmentId) &&
+                    isValidClinicalAssessment(incoming()) &&
+                    incoming().id == assessmentId &&
+                    incoming().userId == request.auth.uid;
+      allow update: if isVerifiedUser() &&
+                    isValidId(assessmentId) &&
+                    isValidClinicalAssessment(incoming()) &&
+                    incoming().id == existing().id &&
+                    incoming().userId == existing().userId &&
+                    incoming().createdAt == existing().createdAt &&
+                    isAdmin() &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['improved', 'improvementScore', 'answersJson']);
+      allow delete: if isValidId(assessmentId) &&
+                    isAuthenticated() &&
+                    (existing().userId == request.auth.uid || isAdmin());
     }
   }
 }

@@ -61,6 +61,23 @@
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["uid", "email", "name", "role"]
+    },
+    "ClinicalAssessment": {
+      "title": "ClinicalAssessment",
+      "description": "Patient clinical assessment and phase transition progress log (Phases 1 to 4)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "format": "email", "maxLength": 254 },
+        "currentPhase": { "type": "integer" },
+        "targetPhase": { "type": "integer" },
+        "improved": { "type": "boolean" },
+        "improvementScore": { "type": "integer" },
+        "answersJson": { "type": "string", "maxLength": 8000 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "userId", "userEmail", "currentPhase", "targetPhase", "improved", "improvementScore", "answersJson", "createdAt"]
     }
   },
   "firestore": {
@@ -75,6 +92,12 @@
         "$ref": "#/entities/UserProfile"
       },
       "description": "Individual user profile, privacy consent, and role metadata."
+    },
+    "/clinical_assessments/{assessmentId}": {
+      "schema": {
+        "$ref": "#/entities/ClinicalAssessment"
+      },
+      "description": "Patient clinical phase evaluation and transition logs."
     }
   }
 }

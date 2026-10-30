@@ -41,7 +41,7 @@ const HomeGrid: React.FC<Props> = ({ onNavigate, lang, darkMode, user, profile }
   );
 
   const getRoleBadge = () => {
-    if (!user) return isBn ? 'গেস্ট মোড (প্রোফাইল ঐচ্ছিক)' : 'Guest Mode (Profile Optional)';
+    if (!user) return isBn ? 'গেস্ট প্রোফাইল' : 'Guest Profile';
     const r = user.profileType || (user.id.startsWith('DOC-') ? 'doctor' : user.isFamilyManager ? 'family' : 'self');
     if (r === 'doctor') return isBn ? 'ডাক্তার প্রোফাইল' : 'Doctor Profile';
     if (r === 'family') return isBn ? 'ফ্যামিলি প্রোফাইল' : 'Family Profile';
@@ -50,6 +50,20 @@ const HomeGrid: React.FC<Props> = ({ onNavigate, lang, darkMode, user, profile }
 
   // Colorful Figma-styled feature cards outside Diet Maker
   const allMenuItems = [
+    {
+      id: 'checklist',
+      icon: ClipboardCheck,
+      label: isBn ? 'ডেইলি চেকলিস্ট, ডায়েট অ্যালার্ম ও পানির রিমাইন্ডার' : 'Daily Checklist, Diet Alarm & Water Reminder',
+      sub: isBn
+        ? 'হ্যাপটিক ভাইব্রেশন চেক-ইন, প্রতি বেলার ফুড মেনু অ্যালার্ম ও পানির রিমাইন্ডার'
+        : 'Haptic Vibration Check-in, Mealtime Food Menu Alarms & Water Reminder',
+      badge: isBn ? 'হ্যাপটিক ও অ্যালার্ম' : 'Haptic & Alarms',
+      iconGradient: 'from-rose-500 via-pink-500 to-emerald-600',
+      shadowColor: 'shadow-rose-500/30',
+      surfaceLight: 'from-rose-50/90 via-white to-emerald-50/60 border-rose-200/80 hover:border-rose-400',
+      surfaceDark: 'from-rose-950/35 via-slate-900 to-emerald-950/25 border-rose-500/30 hover:border-rose-400',
+      badgeStyle: 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30',
+    },
     {
       id: 'calorie_tracker',
       icon: Flame,
@@ -85,8 +99,8 @@ const HomeGrid: React.FC<Props> = ({ onNavigate, lang, darkMode, user, profile }
       icon: Bot,
       label: isBn ? 'AI নিউট্রিশন ও ক্লিনিক্যাল চ্যাটবট' : 'AI Nutrition & Clinical Coach',
       sub: isBn
-        ? 'আপনার প্রোফাইল, ডায়েট চার্ট ও মাইলস্টোন অনুযায়ী উত্তর (Gemini Free)'
-        : 'Personalized Answers from Your Profile & Diet Chart (Gemini Free)',
+        ? 'আপনার প্রোফাইল, ডায়েট চার্ট ও মাইলস্টোন অনুযায়ী পরামর্শ'
+        : 'Personalized Answers from Your Profile & Diet Chart',
       badge: isBn ? 'ব্যক্তিগতকৃত AI' : 'Individualized AI',
       iconGradient: 'from-emerald-500 via-teal-500 to-cyan-600',
       shadowColor: 'shadow-emerald-500/30',

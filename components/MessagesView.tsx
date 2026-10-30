@@ -62,8 +62,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({
             <Sparkles className="w-3.5 h-3.5" />
             <span>
               {isBn
-                ? 'Gemini 3.8 Flash (ফ্রি ও ব্যক্তিগতকৃত)'
-                : 'Gemini 3.8 Flash (Free & Individualized)'}
+                ? 'ব্যক্তিগতকৃত পুষ্টি ও স্বাস্থ্য পরামর্শ'
+                : 'Personalized Nutrition & Health Guidance'}
             </span>
           </div>
           <h2

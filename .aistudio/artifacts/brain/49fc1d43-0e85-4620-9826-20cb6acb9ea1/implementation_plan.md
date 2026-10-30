@@ -1,71 +1,104 @@
-# Unified Clinical Assessment Package Plan (35–42 Questions per Cohort)
+# Universal Residence vs. Dietary Heritage & Cross-Border Supermarket Substitute Engine
 
-## Overview
-Currently, selecting a life-stage cohort routes to a standalone 8-question form that bypasses the core 30+ foundational clinical questions (Anthropometrics, Ayurvedic Vikriti, Microbiome & Gut Health, Functional Metabolism, Inflammatory Index, Female Cycle Sync, Dietary Habits, and Medication History) and uses placeholder metrics for BMI, Dosha, and Microbiome scores.
+Decouples a user's **Current Country of Residence** (climate, seasonal metabolism, and local retail grocery availability) from their **Preferred Dietary Cuisine / Food Heritage** (cultural meals, traditional staples, and familiar recipes), while automatically providing nutritionally equivalent **Local Supermarket Substitutes** for any residence–heritage country pair worldwide.
 
-We will unify the entire clinical intake into a **single step-by-step category tab flow** where every user completes a comprehensive **35 to 42 question clinical package** tailored to their life stage, gender, and primary health condition.
+## User Review & Critical Decisions
 
----
+> [!IMPORTANT]
+> The following architectural and UX decisions reflect your confirmed choices and establish how cross-border nutrition planning works for any nationality living anywhere in the world.
 
-## 1. Unified Step-by-Step Category Tab Flow
-
-When a user selects any of the **5 Life-Stage & Clinical Cohorts** (Pregnancy & Lactation, Child 1–12 Yrs, Oncology / Cancer Care, Adolescent 10–19 Yrs, or Adult Metabolic & Chronic Care), they will move through a single, cohesive multi-step wizard with **Category Progress Tabs**:
-
-### For Adult Metabolic, Oncology, Adolescent, and Pregnancy Cohorts (~38–42 Questions Total):
-1. **Step 1: Anthropometrics & Vital Profile (6 Questions)**
-   - Full Name, Age, Gender (`Male` / `Female` / `Other`), Occupation/Activity Level, Height (ft/in or cm with live converter), and Weight (kg) with live BMI calculation.
-2. **Step 2: Female Focus — Shakti Cycle & Reproductive Health (4–5 Questions — Automatically shown for Female users)**
-   - **First day of last menstrual period (Date picker)** (or Trimester/Lactation stage if in Pregnancy cohort)
-   - Average menstrual cycle length (`28 days`, `21–35 days`, `Irregular`, `Menopause / Post-menopause`, `Pregnant / Lactating`)
-   - Flow & Pain characteristics (`Normal`, `Heavy bleeding / clots`, `Severe cramps / dysmenorrhea`, `Spotting / oligomenorrhea`)
-   - Hormonal / Gynecological history (`PCOS / PCOD`, `Endometriosis / Fibroids`, `Thyroid + Menstrual irregularity`, `Perimenopausal hot flashes`, `None`)
-   - Pre-menstrual symptoms (`PMS mood swings`, `Breast tenderness / water retention`, `Sugar cravings before period`, `Migraine / fatigue`)
-3. **Step 3: Daily Dietary Habits & Meal Timing (6 Questions)**
-   - Typical Breakfast, Mid-morning snack, Lunch composition, Afternoon snack, Dinner timing & food, and Daily hydration / tea / coffee intake.
-4. **Step 4: Ayurvedic Vikriti — Current Constitutional Imbalance (5 Questions)**
-   - Sleep quality & pattern, Emotional response, Body temperature sensitivity, Skin & hair texture, and Daily stamina/energy rhythm (dynamically calculates **Vata / Pitta / Kapha** dominance).
-5. **Step 5: Gut Microbiome & Digestive Function (5 Questions)**
-   - Post-meal bloating/gas timing, Morning tongue coating (`Ama` assessment), Appetite intensity (`Agni`), Bristol Stool Scale pattern, and Reaction to fermented/prebiotic foods (dynamically calculates **Microbiome Score 0–100**).
-6. **Step 6: Functional Nutrition — Insulin, Metabolism & Inflammation (10 Questions)**
-   - **Metabolic & Insulin Sensitivity (5 Qs):** Post-lunch drowsiness ("food coma"), Sugar/carb cravings, Hypoglycemic shakiness when delaying meals, Central/visceral weight gain pattern, Nighttime thirst/urination.
-   - **Systemic Inflammation & Cellular Acid-Alkaline Status (5 Qs):** Morning joint/heel stiffness, Skin/allergy reactivity, Recovery time after physical exertion, Facial/pedal water retention (edema), Chronic cellular fatigue.
-7. **Step 7: Cohort & Condition-Specific Clinical Deep-Dive (8–10 Questions)**
-   - Dynamically adapts to the chosen cohort and primary condition:
-     - **Adult Metabolic & Chronic Care (8–10 Qs):** Primary condition selector (Type 2 Diabetes, Fatty Liver NAFLD Grade 1–3, Dyslipidemia, Hypertension, Kidney/Uric Acid, Thyroid/PCOS, or Gastritis/IBS) + 8 targeted clinical questions on lab stages, meal-to-sleep gap, snoring/sleep apnea, step count, and specific disease triggers.
-     - **Oncology / Cancer Support (10 Qs):** Cancer type & site, Active treatment phase (Chemo, Radiation, Post-surgery, Remission), Cachexia / weight loss %, Dysgeusia (metallic taste), Oral mucositis / swallowing difficulty, Absolute Neutrophil Count (ANC / neutropenia safety), Chemo-induced nausea, Bowel changes, Tolerated food texture, and Caregiver cooking support.
-     - **Pregnancy & Lactation (10 Qs):** Month-by-month Trimester (Month 1–9) or Lactation stage (0–6m / 6–12m), Morning sickness severity, Gestational Diabetes (GDM) status, BP & Edema / Preeclampsia screen, Hemoglobin / Anemia status, Heartburn & Constipation, Cravings & Food aversions, Prescribed prenatal supplements (Folic acid, Iron, Calcium, DHA), Fetal growth / Maternal weight gain trajectory, and Breastmilk supply / Postpartum recovery.
-     - **Adolescent Growth & Puberty (9 Qs):** Age/Gender bracket (10–14 or 15–19), Height spurt & frame trajectory, Menstrual anemia / PCOS screen (for girls), Hormonal acne & skin health, Study focus & afternoon brain fog, Breakfast skipping habit, Sports/athletic intensity, Fast-food/soda frequency, and Late-night screen/sleep schedule.
-8. **Step 8: Medical History, Medications & Optional Lab Biomarkers (6 Questions + Optional Lab Panel)**
-   - Diagnosed co-morbidities, Current prescription medications & supplements (checked against food-drug interactions), Primary health goal, Emergency contact, Optional Lab Report upload, and Optional numerical lab inputs (HbA1c, SGPT, Creatinine, Hemoglobin, Vitamin D, etc.).
+- **Confirmed Decision 1 — Dual Independent Selectors (Residence vs. Food Heritage)**: Users explicitly select two independent parameters in their profile, onboarding assessment, and diet header:
+  1. **Current Country of Residence (বর্তমান অবস্থানরত দেশ)**: Governs climate/weather adaptation, seasonal hydration, circadian timing, and which local supermarket chains exist around the user.
+  2. **Preferred Dietary Cuisine / Food Country (পছন্দের খাবারের দেশ / খাদ্য সংস্কৃতি)**: Governs the primary meals, recipes, spices, and staple foods used to construct the clinical diet chart.
+- **Confirmed Decision 2 — Dual-Layer Meal & Ingredient Display (Heritage Food + Local Supermarket Equivalent)**: Whenever a user's Current Country of Residence differs from their Preferred Food Country (Cross-Border / Expat / Diaspora Mode), every meal slot, food exchange row, and Food Glossary card displays the **Primary Heritage Food** alongside its **Nutritionally Equivalent Local Supermarket Substitute** (matched for protein, glycemic index, fatty acid profile, and micronutrients) plus ethnic/frozen grocery availability notes.
+- **Confirmed Decision 3 — Universal Global Coverage (Any Country to Any Country)**: Rather than hardcoding a single diaspora pair, the engine supports a universal global matrix of residence regions and culinary heritages (Bangladesh, India, USA, Canada, UK, Europe, Middle East / GCC, East & Southeast Asia, Latin America, Mediterranean, Australia, and Custom Country entry).
 
 ---
 
-## 2. Dedicated Pediatric Package for Child Cohort (`child_pediatric`, Ages 1–12) — 32 Questions Total
+## 1. Overview & Core Concept
 
-When the user selects **Child & Pediatric Nutrition (Ages 1–12)**, the adult questions are replaced after Anthropometrics with a dedicated **32-question Pediatric Clinical & Developmental Package** organized into 6 child-focused tabs:
-
-1. **Tab 1: Child Anthropometrics & Growth Trajectory (6 Questions)**
-   - Child's Name, Exact Age (1–12 years), Gender, Height (cm/ft), Weight (kg), and Growth Percentile / Weight-for-Age trajectory (`Normal`, `Underweight / Faltering`, `Stunted linear height`, `Childhood Overweight`).
-2. **Tab 2: Pediatric Feeding Behavior & Daily Tiffin Routine (6 Questions)**
-   - Appetite & Picky eating behavior, Breakfast before school, School Tiffin box habit (finishes home tiffin vs. leaves half vs. canteen packaged snacks), Protein intake frequency (egg, fish, dal, milk), Vegetable & fruit acceptance, and Junk food / sweet beverage / packet chip frequency.
-3. **Tab 3: Pediatric Gut Microbiome & Digestion (5 Questions)**
-   - Stool consistency & regularity (pediatric constipation / hard pellets vs. loose stools), Recurrent colic / tummy ache after meals, Bloating or foul-smelling gas, Deworming history & worm symptoms (teeth grinding at night, anal itching), and History of antibiotic courses in the past 6 months.
-4. **Tab 4: Immunity, Allergies & Respiratory Resilience (5 Questions)**
-   - Frequency of cold, cough, tonsillitis, or viral fever, Allergic tendencies (childhood asthma, eczema/skin rashes, allergic rhinitis), Specific food allergies/intolerances (Cow's milk protein / lactose, egg, nuts, wheat/gluten), Wound healing & gum/dental health (caries/cavities), and Micronutrient deficiency signs (white spots on nails, pale conjunctiva, leg cramps at night).
-5. **Tab 5: Pediatric Ayurvedic Prakriti & Neuro-Development (5 Questions)**
-   - Child's constitutional temperament (Active/restless Vata, Sharp/hungry/warm Pitta, Calm/steady/mucus-prone Kapha), Sleep schedule & quality (mouth breathing/snoring, bedtime resistance), Screen time & mobile-feeding dependency, Concentration, memory & classroom energy, and Physical play / outdoor sunlight exposure.
-6. **Tab 6: Pediatric Clinical History, Supplements & Lab Markers (5 Questions + Optional Labs)**
-   - Current pediatrician-prescribed syrups/supplements (Iron, Zinc, Vitamin D3, Calcium, Multivitamins), Past medical history (febrile seizures, jaundice, recurrent UTI/diarrhea), Caregiver's #1 nutritional goal for the child, Emergency parent contact, and Optional Pediatric Lab Markers (Hemoglobin, Serum Ferritin, Vitamin D3, Stool R/E).
+- **What It Does**:
+  - Allows any user living abroad (for example, a Bangladeshi living in the USA, an Indian in the UK, a Mexican in Canada, or an American in Japan) to receive a clinical diet chart built around their **own home-country cuisine** while adapting hydration, thermogenic spices, and Vitamin D / seasonal guidance to the **climate of their current country**, and mapping hard-to-find native ingredients to **exact nutritional equivalents sold in local supermarkets** (e.g., Walmart, Whole Foods, Costco, Tesco, Carrefour, Aldi, Woolworths).
+- **Target Audience / Persona**:
+  - Expatriates, immigrants, international students, travelers, and multicultural households worldwide who want clinical therapeutic nutrition using familiar home-cooked meals without struggling to source unavailable native ingredients.
+- **Key Value**:
+  - Eliminates the false choice between "eating unfamiliar local western/foreign diet food" and "guessing how to buy native ingredients abroad" by pairing every traditional dish with verified local grocery equivalents and macro-matched swaps.
 
 ---
 
-## 3. Real Clinical Scoring & Seamless Report Integration
+## 2. User Experience & Visual Design
 
-- **No More Hardcoded Placeholders:** Completing any cohort assessment will dynamically compute real clinical scores from the 35–42 answers:
-  - **Real BMI & Anthropometric Status** from entered Height & Weight
-  - **Real Ayurvedic Dosha Profile** (`Vata`, `Pitta`, `Kapha` percentages)
-  - **Real Gut Microbiome Score (0–100)** from digestive & antibiotic responses
-  - **Real Metabolic Type & Inflammatory Index (1–10)**
-  - **Real Female Cycle Phase** (`Menstrual`, `Follicular`, `Ovulatory`, `Luteal`) calculated from the user's Last Period Date (`shakti_1`) and cycle length (`shakti_2`)
-  - **Real Food-Drug Interaction Alerts** from entered medications (`medical_2`) + cohort clinical rules
-- **Full Bilingual Support (Bangla & English):** Every question, option, category tab, and clinical badge supports switching between বাংলা and English.
+- **Key User Flows**:
+  1. **Dual Country & Cuisine Selector Bar (Assessment, Profile & Diet Header)**:
+     - Users see two clean, side-by-side selectors:
+       - **🌍 Current Residence Country (বর্তমান অবস্থানরত দেশ — আবহাওয়া ও সুপারমার্কেট)**: e.g., United States, United Kingdom, Canada, UAE / Saudi Arabia, Australia, Germany / EU, Japan, Bangladesh, India, etc.
+       - **🍲 Preferred Dietary Cuisine (পছন্দের খাবারের দেশ — ডায়েট মেনু)**: e.g., Bangladeshi (বাঙালি খাবার), Indian (North/South), Mediterranean, American / Western, Middle Eastern / Arabic, East Asian, Latin American, or Mixed Global.
+     - When `Residence Country !== Preferred Food Country`, a **Cross-Border Smart Substitution Banner** activates automatically, showing the active pairing (e.g., `Living in USA 🇺🇸 · Eating Bangladeshi Cuisine 🇧🇩 · Local Supermarket Equivalents Active`).
+  2. **Diet Chart Meal Cards & Food Exchange Table**:
+     - Each meal slot shows the **Primary Heritage Menu** (e.g., *Shing/Magur Jhol with Red Parboiled Rice & Lau Shak*) and an expandable/inline **Local Supermarket Equivalent Strip** for the user's current residence country (e.g., *US Supermarket Swap at Whole Foods / Walmart / H-Mart: Wild Catfish or Tilapia/Cod fillet + Red Cargo / Brown Basmati Rice + Bottle Gourd / Zucchini & Baby Spinach*).
+  3. **Food Glossary & Smart Bazaar Integration**:
+     - In the Food Glossary and Smart Bazaar shopping list, each item displays a **Local Grocery Equivalence line** tailored to the user's Residence Country, categorizing items into:
+       - *Available Fresh in Local Mainstream Supermarkets*
+       - *Available Frozen in Local Ethnic / International Aisles*
+       - *1:1 Nutritionally Equivalent Local Substitute (Macro & GI Matched)*
+- **Visual Identity & Theme**:
+  - *Aesthetic Direction*: High-precision clinical nutrition workspace with warm editorial clarity, single-elevation cards (`1px` subtle borders), and zero-pill inline metadata separated by `·` typographic dividers.
+  - *Color Palette & Mood*: Neutral slate/ivory surfaces (`#FFFFFF` / `#0F172A`), clinical emerald primary accents (`#059669`) for verified heritage foods, and warm amber/indigo indicators (`#D97706` / `#4F46E5`) for cross-border supermarket equivalents.
+  - *Typography & Hierarchy*: Clean bilingual sans-serif hierarchy for Bangla and English descriptions paired with `tabular-nums` monospace figures for macro comparisons (`kcal`, `Protein`, `GI`) between the native food and its local supermarket substitute.
+- **Interactive Feedback & Motion**:
+  - Changing either the **Current Residence Country** or **Preferred Food Country** immediately updates the Cross-Border Equivalence layer across the Diet Chart, Food Exchange Table, Smart Bazaar, and Food Glossary, with a one-tap **"Re-adapt Diet Chart for Location & Cuisine"** trigger.
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Decoupling Environmental Context from Culinary Identity**
+  - *Chosen Approach*: Store `residenceCountry` and `preferredCuisineCountry` as two distinct first-class attributes on the user's health profile, plus a `crossBorderSubstitutionMode` setting (`auto_equivalent` | `strict_heritage_only` | `hybrid_meals`).
+  - *Why*: Physical location dictates temperature, humidity, daylight hours (Vitamin D), and local grocery store chains, whereas cultural food identity dictates gut microbiome familiarity, spice tolerance, and long-term diet compliance.
+  - *Alternatives Considered*: Using GPS location alone to pick both weather and food—rejected because it forces expatriates to eat unfamiliar foreign meals and causes rapid diet drop-off.
+- **Decision 2: Hybrid Deterministic + AI Global Food Equivalence Engine**
+  - *Chosen Approach*: Build a comprehensive deterministic **Global Cross-Border Food Equivalence Matrix** covering major staple categories (freshwater/marine fish, rice & ancient grains, leafy greens, gourds & vegetables, lentils/legumes, cooking oils, and fermented gut foods) across global regions, combined with prompt-grounded AI generation when a user's personal Gemini account is active.
+  - *Why*: Guarantees instant, zero-latency, clinically accurate supermarket substitutes even offline or without AI network calls, while allowing unlimited custom country pairs when AI is enabled.
+
+---
+
+## 4. Technical Architecture & Data Strategy *(Technical Reference)*
+
+- **Architecture & Component Diagram**:
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                   USER HEALTH PROFILE & GLOBAL CONTEXT                     │
+│  • residenceCountry (Climate, Season, Local Supermarket Ecosystem)         │
+│  • preferredCuisineCountry (Cultural Meals, Recipes, Traditional Staples)  │
+│  • crossBorderMode ('dual_equivalent' | 'heritage_frozen' | 'hybrid')      │
+└───────────────────┬────────────────────────────────────┬───────────────────┘
+                    │                                    │
+                    ▼                                    ▼
+┌───────────────────────────────────────┐  ┌─────────────────────────────────┐
+│  CLIMATE & METABOLIC ADAPTER          │  │ GLOBAL FOOD EQUIVALENCE ENGINE  │
+│  • Weather & Hydration Adjustment     │  │ • Heritage Food Database        │
+│  • Seasonal Dosha & Vitamin D Cues    │  │ • Macro & GI-Matched Local Swap │
+│  • Local Timezone Meal Slot Sync      │  │ • Mainstream vs Ethnic Store Map│
+└───────────────────┬───────────────────┘  └─────────────────┬───────────────┘
+                    │                                        │
+                    └───────────────────┬────────────────────┘
+                                        ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                        UNIFIED USER INTERFACE                              │
+│  ┌──────────────────────┐ ┌──────────────────────┐ ┌────────────────────┐  │
+│  │ Dual Country/Cuisine │ │ Diet Chart & Meal    │ │ Food Glossary &    │  │
+│  │ Selector Bar         │ │ Equivalent Swaps     │ │ Smart Bazaar List  │  │
+│  └──────────────────────┘ └──────────────────────┘ └────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Data Model & State**:
+  - Extend `HealthProfile` with:
+    - `residenceCountry`: Country/region code & label where the user currently lives (e.g., `'US'`, `'GB'`, `'CA'`, `'AE'`, `'AU'`, `'EU'`, `'JP'`, `'BD'`, `'IN'`, or custom country name).
+    - `preferredCuisineCountry`: Country/culture of the food the user wants to eat (e.g., `'BD'`, `'IN'`, `'MED'`, `'US'`, `'ME'`, `'EA'`, `'LATAM'`, or custom).
+    - `supermarketSubstituteMode`: `'show_equivalents'` (default) | `'ethnic_frozen_only'` | `'hybrid'`.
+  - Extend `Meal` and `FoodExchangeRow` with optional `localSupermarketSwap` metadata (`substituteName`, `supermarketChains`, `nutritionalParityNote`, `availabilityType`).
+- **Interactive Component & State Mapping**:
+  - **Dual Country & Cuisine Switcher Component**: Reusable control bar embedded in `DietView`, `ProfileView`, `CohortAssessmentForm`, and `FoodRecognitionView` allowing instant switching of Residence Country and Preferred Food Country with persistent storage in `localStorage` and Service Worker offline cache.
+  - **Cross-Border Equivalence Resolver**: Pure service function that takes `(foodItemOrMeal, preferredCuisineCountry, residenceCountry, lang)` and returns the localized supermarket equivalent, store chain examples (e.g., *Walmart / Whole Foods / Costco* in US; *Tesco / Sainsbury's / Asda* in UK; *Loblaws / Costco* in Canada; *Carrefour / Lulu* in UAE/GCC; *Woolworths / Coles* in Australia), and clinical macro parity note.

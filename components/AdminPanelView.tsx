@@ -26,8 +26,14 @@ import {
   getCloudflareD1SqlSchema,
   getCloudflareWorkerScript,
 } from '../services/platformHubService';
+import {
+  formatByteSize,
+} from '../services/imageCompressionService';
+import ProfilePhotoCropModal from './ProfilePhotoCropModal';
 import { ADMIN_EMAIL, signInWithGoogleAccount } from '../firebase';
 import {
+  Camera,
+  Upload,
   Activity,
   AlertTriangle,
   Award,
@@ -156,7 +162,10 @@ const AdminPanelView: React.FC<Props> = ({ user, lang, darkMode, onUserUpdated }
     phone: string;
     email: string;
     licenseNumber: string;
+    photoUrl?: string;
+    photoCompressionNote?: string;
   } | null>(null);
+  const [pendingAdminCropFile, setPendingAdminCropFile] = useState<File | null>(null);
 
   const [editingPayment, setEditingPayment] = useState<{
     id: string;
@@ -434,6 +443,7 @@ const AdminPanelView: React.FC<Props> = ({ user, lang, darkMode, onUserUpdated }
       phone: nutri.phone,
       email: nutri.email,
       licenseNumber: nutri.licenseNumber,
+      photoUrl: nutri.photoUrl,
     });
   };
 
@@ -4170,6 +4180,60 @@ const AdminPanelView: React.FC<Props> = ({ user, lang, darkMode, onUserUpdated }
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              {/* Profile Photo Uploader (Free-Tier Smart HD Optimizer) */}
+              <div className="sm:col-span-2 p-3.5 rounded-2xl border border-teal-500/30 bg-teal-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-2xl overflow-hidden shrink-0 border-2 border-teal-400/50">
+                    {editingNutritionist.photoUrl ? (
+                      <img
+                        src={editingNutritionist.photoUrl}
+                        alt={editingNutritionist.fullNameEn}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      '👩‍⚕️'
+                    )}
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="font-extrabold text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>
+                        {isBn
+                          ? 'ডাক্তার / নিউট্রিশনিস্ট প্রোফাইল ফটো (Free-Tier Smart HD)'
+                          : 'Doctor / Nutritionist Profile Photo (Free-Tier Smart HD)'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] opacity-75">
+                      {isBn
+                        ? 'যেকোনো সাইজের ছবি আপলোড করলে কোয়ালিটি ঠিক রেখে অটো-রিসাইজ (~15-24 KB) হবে।'
+                        : 'Any image size is automatically optimized (~15-24 KB) while preserving crisp HD quality.'}
+                    </p>
+                    {editingNutritionist.photoCompressionNote && (
+                      <div className="text-[10px] font-extrabold text-emerald-500">
+                        {editingNutritionist.photoCompressionNote}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <label className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold cursor-pointer inline-flex items-center gap-1.5 shrink-0 shadow-sm">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{isBn ? 'ফটো আপলোড ও ক্রপ' : 'Upload & Crop Photo'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setPendingAdminCropFile(file);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+
               {/* Consultation Fee (BDT) */}
               <div className="space-y-1.5 sm:col-span-2 p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/5">
                 <label className="font-extrabold text-amber-500 block">
@@ -4395,6 +4459,7 @@ const AdminPanelView: React.FC<Props> = ({ user, lang, darkMode, onUserUpdated }
                     phone: editingNutritionist.phone,
                     email: editingNutritionist.email,
                     licenseNumber: editingNutritionist.licenseNumber,
+                    photoUrl: editingNutritionist.photoUrl,
                   });
                   setEditingNutritionist(null);
                   setCalendarStatusMessage(
@@ -4555,6 +4620,26 @@ const AdminPanelView: React.FC<Props> = ({ user, lang, darkMode, onUserUpdated }
           </div>
         </div>
       )}
+
+      {/* CIRCULAR FACE CROP MODAL FOR ADMIN NUTRITIONIST PHOTO EDITOR */}
+      <ProfilePhotoCropModal
+        file={pendingAdminCropFile}
+        lang={lang}
+        darkMode={darkMode}
+        onCancel={() => setPendingAdminCropFile(null)}
+        onConfirm={(res) => {
+          setPendingAdminCropFile(null);
+          setEditingNutritionist((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  photoUrl: res.dataUrl,
+                  photoCompressionNote: `✓ ${formatByteSize(res.originalBytes)} ➔ ${formatByteSize(res.compressedBytes)} (${res.savingsPercent}% সাশ্রয় • ${res.width}×${res.height}px)`,
+                }
+              : null
+          );
+        }}
+      />
     </div>
   );
 };

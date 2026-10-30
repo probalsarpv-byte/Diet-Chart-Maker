@@ -11,9 +11,17 @@ import {
   subscribePlatformState,
   registerNutritionistListing,
   submitNutritionistBookingWithPayment,
+  updateNutritionistPhoto,
 } from '../services/platformHubService';
 import {
+  formatByteSize,
+  CompressedPhotoResult,
+} from '../services/imageCompressionService';
+import { useDeviceLayout as useDeviceSkin } from '../services/deviceSkinService';
+import ProfilePhotoCropModal from './ProfilePhotoCropModal';
+import {
   Award,
+  Camera,
   Calendar,
   CheckCircle2,
   Clock,
@@ -23,6 +31,7 @@ import {
   ShieldCheck,
   Sparkles,
   Stethoscope,
+  Upload,
   UserCheck,
   Video,
   X,
@@ -36,6 +45,7 @@ interface Props {
 
 const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
   const isBn = lang === 'bn';
+  const { isMobileSkin } = useDeviceSkin();
 
   const [hubState, setHubState] = useState(() => loadPlatformState());
   const [activeTab, setActiveTab] = useState<'browse' | 'my_bookings' | 'nutritionist_portal' | 'register'>('browse');
@@ -69,7 +79,19 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
   const [regBioBn, setRegBioBn] = useState('');
   const [regMeetUrl, setRegMeetUrl] = useState('https://meet.google.com/new');
   const [regWantFeatured, setRegWantFeatured] = useState(true);
+  const [regPhotoUrl, setRegPhotoUrl] = useState<string>(user?.photoUrl || user?.professionalProfile?.photoUrl || '');
+  const [regPhotoStats, setRegPhotoStats] = useState<CompressedPhotoResult | null>(null);
+  const [photoUploadError, setPhotoUploadError] = useState('');
   const [regSubmitted, setRegSubmitted] = useState(false);
+
+  // Portal Photo Update State for existing Nutritionists/Doctors
+  const [portalSelectedNutriId, setPortalSelectedNutriId] = useState<string>('NUTRI-1');
+  const [portalPhotoStats, setPortalPhotoStats] = useState<CompressedPhotoResult | null>(null);
+  const [portalPhotoStatusMsg, setPortalPhotoStatusMsg] = useState<string>('');
+
+  // Circular Crop Modal State ('register' | 'portal')
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
+  const [cropTargetMode, setCropTargetMode] = useState<'register' | 'portal'>('register');
 
   useEffect(() => {
     return subscribePlatformState((st) => {
@@ -152,11 +174,30 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
         regBioBn.trim() ||
         'Experienced clinical nutritionist specializing in metabolic health and therapeutic Bangladeshi diets.',
       avatarEmoji: '🩺',
+      photoUrl: regPhotoUrl || undefined,
       featuredRequested: regWantFeatured,
       defaultMeetUrl: regMeetUrl.trim() || 'https://meet.google.com/new',
     });
 
     setRegSubmitted(true);
+  };
+
+  const handleRegPhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUploadError('');
+    setCropTargetMode('register');
+    setPendingCropFile(file);
+    e.target.value = '';
+  };
+
+  const handlePortalPhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !portalSelectedNutriId) return;
+    setPortalPhotoStatusMsg('');
+    setCropTargetMode('portal');
+    setPendingCropFile(file);
+    e.target.value = '';
   };
 
   return (
@@ -169,34 +210,48 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
             : 'bg-gradient-to-br from-teal-50 via-emerald-50/70 to-indigo-50/70 border-teal-200'
         }`}
       >
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-3 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-extrabold bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm">
-              <Stethoscope className="w-3.5 h-3.5" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-6">
+          <div className="space-y-2 md:space-y-3 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] md:text-xs font-extrabold bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm">
+              <Stethoscope className="w-3.5 h-3.5 shrink-0" />
               <span>
-                {isBn
+                {isMobileSkin
+                  ? isBn
+                    ? 'পুষ্টিবিদ ও ডায়েটিশিয়ান হাব (Google Meet)'
+                    : 'Dietitian & Nutritionist Hub (Google Meet)'
+                  : isBn
                   ? 'ফিচার্ড ডায়েটিশিয়ান ও পুষ্টিবিদ কনসালটেশন হাব (Google Meet যুক্ত)'
                   : 'Featured Dietitian & Nutritionist Consultation Hub (With Google Meet)'}
               </span>
             </div>
 
-            <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight">
+            <h1 className={`${isMobileSkin ? 'text-xl' : 'text-2xl md:text-4xl'} font-extrabold tracking-tight`}>
               {isBn
                 ? 'বিশেষজ্ঞ পুষ্টিবিদ ও ডায়েটিশিয়ান অ্যাপয়েন্টমেন্ট'
                 : 'Consult Verified Dietitians & Clinical Nutritionists'}
             </h1>
             <p className="text-xs md:text-sm opacity-80 leading-relaxed">
-              {isBn
-                ? 'আপনার পছন্দমতো পুষ্টিবিদ নির্বাচন করে শিডিউল ও ম্যানুয়াল পেমেন্ট সম্পন্ন করুন। অ্যাডমিন প্যানেল পেমেন্ট অ্যাপ্রুভ করলেই পুষ্টিবিদের প্রোফাইলে বুকিং যুক্ত হবে এবং আপনারা সরাসরি Google Meet-এ কথা বলতে পারবেন।'
-                : 'Book a schedule with a verified nutritionist via manual payment. Once approved by the Admin Panel, the appointment activates on the Nutritionist dashboard with a live Google Meet room.'}
+              {isMobileSkin
+                ? isBn
+                  ? 'পুষ্টিবিদ নির্বাচন করে শিডিউল বুক করুন এবং সরাসরি Google Meet-এ পরামর্শ নিন।'
+                  : 'Select a verified nutritionist, book a slot, and join live Google Meet sessions.'
+                : isBn
+                ? 'আপনার পছন্দমতো পুষ্টিবিদ নির্বাচন করে শিডিউল বুক করুন এবং নির্ধারিত সময়ে সরাসরি Google Meet-এ পরামর্শ নিন।'
+                : 'Book a schedule with a verified nutritionist and join your live Google Meet consultation session.'}
             </p>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex flex-wrap gap-2">
+          {/* Navigation Tabs — Swipeable Single Row on Mobile Skin, Multi-Pill on PC Skin */}
+          <div
+            className={
+              isMobileSkin
+                ? 'flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 flex-nowrap snap-x'
+                : 'flex flex-wrap gap-2'
+            }
+          >
             <button
               onClick={() => setActiveTab('browse')}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all ${
+              className={`px-3.5 py-2.5 rounded-2xl text-xs font-extrabold transition-all shrink-0 snap-start ${
                 activeTab === 'browse'
                   ? 'bg-teal-600 text-white shadow-lg'
                   : darkMode
@@ -209,7 +264,7 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
 
             <button
               onClick={() => setActiveTab('my_bookings')}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all ${
+              className={`px-3.5 py-2.5 rounded-2xl text-xs font-extrabold transition-all shrink-0 snap-start ${
                 activeTab === 'my_bookings'
                   ? 'bg-indigo-600 text-white shadow-lg'
                   : darkMode
@@ -217,12 +272,12 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
                   : 'bg-white text-slate-700 border border-slate-200'
               }`}
             >
-              📅 {isBn ? 'আমার বুকিং ও Meet লিংক' : 'My Bookings & Meet'}
+              📅 {isBn ? (isMobileSkin ? 'আমার বুকিং' : 'আমার বুকিং ও Meet লিংক') : 'My Bookings'}
             </button>
 
             <button
               onClick={() => setActiveTab('nutritionist_portal')}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all relative ${
+              className={`px-3.5 py-2.5 rounded-2xl text-xs font-extrabold transition-all relative shrink-0 snap-start ${
                 activeTab === 'nutritionist_portal'
                   ? 'bg-emerald-600 text-white shadow-lg'
                   : darkMode
@@ -230,7 +285,7 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
                   : 'bg-white text-slate-700 border border-slate-200'
               }`}
             >
-              🩺 {isBn ? 'পুষ্টিবিদ ড্যাশবোর্ড (আজকের বুকিং)' : 'Nutritionist Schedule'}
+              🩺 {isBn ? (isMobileSkin ? 'ডাক্তার পোর্টাল' : 'পুষ্টিবিদ ড্যাশবোর্ড (আজকের বুকিং)') : 'Doctor Portal'}
               {confirmedNutritionistBookings.length > 0 && (
                 <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-black">
                   {confirmedNutritionistBookings.length}
@@ -240,7 +295,7 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
 
             <button
               onClick={() => setActiveTab('register')}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all ${
+              className={`px-3.5 py-2.5 rounded-2xl text-xs font-extrabold transition-all shrink-0 snap-start ${
                 activeTab === 'register'
                   ? 'bg-amber-500 text-slate-950 shadow-lg'
                   : darkMode
@@ -248,7 +303,7 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
                   : 'bg-amber-50 text-amber-800 border border-amber-200'
               }`}
             >
-              ✨ {isBn ? 'পুষ্টিবিদ রেজিস্ট্রেশন / ফিচার্ড আবেদন' : 'Register as Dietitian'}
+              ✨ {isBn ? (isMobileSkin ? 'ডাক্তার রেজিস্ট্রেশন' : 'পুষ্টিবিদ রেজিস্ট্রেশন / ফিচার্ড আবেদন') : 'Register'}
             </button>
           </div>
         </div>
@@ -293,8 +348,16 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center text-3xl shadow-md shrink-0">
-                          {nutri.avatarEmoji}
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center text-3xl shadow-md shrink-0 overflow-hidden border-2 border-amber-400/50">
+                          {nutri.photoUrl ? (
+                            <img
+                              src={nutri.photoUrl}
+                              alt={nutri.fullNameEn}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            nutri.avatarEmoji
+                          )}
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -381,8 +444,16 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
                 >
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-teal-500/15 text-2xl flex items-center justify-center">
-                        {nutri.avatarEmoji}
+                      <div className="w-12 h-12 rounded-2xl bg-teal-500/15 text-2xl flex items-center justify-center overflow-hidden border border-teal-500/30 shrink-0">
+                        {nutri.photoUrl ? (
+                          <img
+                            src={nutri.photoUrl}
+                            alt={nutri.fullNameEn}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          nutri.avatarEmoji
+                        )}
                       </div>
                       <div>
                         <h4 className="font-extrabold text-sm">{isBn ? nutri.fullNameBn : nutri.fullNameEn}</h4>
@@ -532,11 +603,100 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
                 </h2>
                 <p className="text-xs opacity-75">
                   {isBn
-                    ? 'অ্যাডমিন প্যানেল থেকে রোগীর পেমেন্ট ভেরিফাই ও অ্যাপ্রুভ হওয়ার পরই কেবল এই তালিকাটি পুষ্টিবিদের প্রোফাইলে প্রদর্শিত হয়।'
-                    : 'Appointments appear here strictly AFTER the Admin Panel verifies and approves the patient payment.'}
+                    ? 'আপনার কনফার্মড রোগীদের অ্যাপয়েন্টমেন্ট তালিকা নিচে দেওয়া হলো।'
+                    : 'Your confirmed patient consultation appointments are listed below.'}
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Doctor / Nutritionist Profile Photo Manager */}
+          <div
+            className={`p-5 md:p-6 rounded-3xl border-2 space-y-4 ${
+              darkMode
+                ? 'bg-slate-900/90 border-teal-500/30'
+                : 'bg-gradient-to-r from-teal-50/70 via-white to-emerald-50/70 border-teal-200 shadow-sm'
+            }`}
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-teal-500/15 text-teal-600 dark:text-teal-300">
+                  <Camera className="w-3 h-3" />
+                  <span>
+                    {isBn
+                      ? 'প্রোফাইল ফটো'
+                      : 'Profile Photo'}
+                  </span>
+                </div>
+                <h3 className="text-base font-extrabold">
+                  {isBn
+                    ? '🩺 ডাক্তার ও নিউট্রিশনিস্ট প্রোফাইল ফটো যুক্ত বা পরিবর্তন করুন'
+                    : '🩺 Add or Update Doctor & Nutritionist Profile Photo'}
+                </h3>
+                <p className="text-xs opacity-75">
+                  {isBn
+                    ? 'আপনার প্রোফাইলের জন্য একটি স্পষ্ট ছবি নির্বাচন ও ক্রপ করুন।'
+                    : 'Select and crop a clear portrait photo for your clinical profile.'}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={portalSelectedNutriId}
+                  onChange={(e) => {
+                    setPortalSelectedNutriId(e.target.value);
+                    setPortalPhotoStatusMsg('');
+                  }}
+                  className={`p-2.5 rounded-xl border text-xs font-bold ${
+                    darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                  }`}
+                >
+                  {hubState.nutritionists.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {isBn ? n.fullNameBn : n.fullNameEn} ({n.licenseNumber})
+                    </option>
+                  ))}
+                </select>
+
+                {(() => {
+                  const currentNutri = hubState.nutritionists.find((n) => n.id === portalSelectedNutriId);
+                  return (
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-teal-600/20 border-2 border-teal-500/40 flex items-center justify-center text-2xl overflow-hidden shrink-0">
+                        {currentNutri?.photoUrl ? (
+                          <img
+                            src={currentNutri.photoUrl}
+                            alt={currentNutri.fullNameEn}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          currentNutri?.avatarEmoji || '👩‍⚕️'
+                        )}
+                      </div>
+
+                      <label className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-extrabold cursor-pointer inline-flex items-center gap-2 shadow-md">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>
+                          {isBn ? 'ফটো আপলোড ও ক্রপ করুন' : 'Upload & Crop Photo'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePortalPhotoFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {portalPhotoStatusMsg && (
+              <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex flex-wrap items-center justify-between gap-2">
+                <span>{portalPhotoStatusMsg}</span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -636,9 +796,78 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
                   </h3>
                   <p className="text-xs opacity-65">
                     {isBn
-                      ? 'অ্যাডমিন প্যানেল অ্যাপ্রুভ করলে রোগীরা আপনার শিডিউল বুক করতে এবং Google Meet-এ পরামর্শ নিতে পারবে।'
-                      : 'Approved profiles receive patient bookings and Google Meet consultations.'}
+                      ? 'প্রোফাইল যাচাই সম্পন্ন হলে রোগীরা আপনার শিডিউল বুক করতে এবং Google Meet-এ পরামর্শ নিতে পারবে।'
+                      : 'Verified profiles receive patient bookings and Google Meet consultations.'}
                   </p>
+                </div>
+              </div>
+
+              {/* Profile Photo Upload */}
+              <div
+                className={`p-4 rounded-2xl border-2 border-dashed flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                  darkMode ? 'bg-slate-800/60 border-teal-500/40' : 'bg-teal-50/50 border-teal-300'
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center text-3xl shadow-md overflow-hidden shrink-0 border-2 border-white/30">
+                    {regPhotoUrl ? (
+                      <img src={regPhotoUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      '🩺'
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-extrabold flex items-center gap-1.5">
+                      <span>{isBn ? 'প্রোফাইল ফটো যুক্ত করুন' : 'Profile Photo'}</span>
+                    </div>
+                    <p className="text-[11px] opacity-75 leading-relaxed">
+                      {isBn
+                        ? 'আপনার প্রোফাইলের জন্য একটি স্পষ্ট ছবি নির্বাচন ও ক্রপ করুন।'
+                        : 'Select and crop a clear portrait photo for your profile.'}
+                    </p>
+                    {regPhotoStats && (
+                      <div className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                        {isBn ? '✓ প্রোফাইল ফটো যুক্ত হয়েছে' : '✓ Profile photo ready'}
+                      </div>
+                    )}
+                    {photoUploadError && (
+                      <div className="text-[10px] font-bold text-red-500">{photoUploadError}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold cursor-pointer inline-flex items-center gap-1.5 shadow-md">
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>
+                      {regPhotoUrl
+                        ? isBn
+                          ? 'ছবি পরিবর্তন ও ক্রপ করুন'
+                          : 'Change & Crop Photo'
+                        : isBn
+                        ? 'ছবি নির্বাচন ও ক্রপ করুন'
+                        : 'Select & Crop Photo'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleRegPhotoFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  {regPhotoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRegPhotoUrl('');
+                        setRegPhotoStats(null);
+                      }}
+                      className="p-2 rounded-xl bg-red-500/15 text-red-500 hover:bg-red-500/25 text-xs font-bold"
+                      title={isBn ? 'ছবি মুছুন' : 'Remove photo'}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -783,25 +1012,44 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
         </div>
       )}
 
-      {/* BOOKING + MANUAL PAYMENT MODAL */}
+      {/* BOOKING + MANUAL PAYMENT MODAL — Adaptive Mobile Bottom Sheet vs PC Dialog */}
       {selectedNutritionist && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+        <div
+          className={`fixed inset-0 z-[220] flex ${
+            isMobileSkin ? 'items-end justify-center p-0' : 'items-center justify-center p-4 overflow-y-auto'
+          } animate-in fade-in`}
+        >
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedNutritionist(null)} />
           <div
-            className={`relative w-full max-w-xl rounded-[32px] border-2 p-6 md:p-8 shadow-2xl my-8 ${
+            className={`relative w-full ${
+              isMobileSkin
+                ? 'max-w-lg rounded-t-[28px] border-t-2 p-4 pb-8 max-h-[92dvh] overflow-y-auto'
+                : 'max-w-xl rounded-[32px] border-2 p-6 md:p-8 my-8'
+            } shadow-2xl ${
               darkMode ? 'bg-slate-900 border-teal-500/40 text-white' : 'bg-white border-teal-300 text-slate-900'
             }`}
           >
+            {isMobileSkin && (
+              <div className="w-12 h-1.5 rounded-full bg-slate-400/40 mx-auto mb-3" />
+            )}
             <button
               onClick={() => setSelectedNutritionist(null)}
-              className="absolute top-5 right-5 p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800"
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-3.5 mb-5">
-              <div className="w-14 h-14 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-3xl">
-                {selectedNutritionist.avatarEmoji}
+              <div className="w-14 h-14 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-3xl overflow-hidden shrink-0">
+                {selectedNutritionist.photoUrl ? (
+                  <img
+                    src={selectedNutritionist.photoUrl}
+                    alt={selectedNutritionist.fullNameEn}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  selectedNutritionist.avatarEmoji
+                )}
               </div>
               <div>
                 <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-teal-500/15 text-teal-500">
@@ -973,13 +1221,39 @@ const NutritionistHubView: React.FC<Props> = ({ user, lang, darkMode }) => {
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 text-white font-extrabold text-xs uppercase tracking-wider shadow-lg"
               >
                 {isBn
-                  ? 'বুকিং ও পেমেন্ট অ্যাডমিন প্যানেলে জমা দিন'
-                  : 'Submit Booking & Payment for Admin Approval'}
+                  ? 'বুকিং ও পেমেন্ট কনফার্ম করুন'
+                  : 'Confirm Booking & Submit Payment'}
               </button>
             </form>
           </div>
         </div>
       )}
+
+      {/* CIRCULAR FACE CROP MODAL FOR DOCTOR / NUTRITIONIST PHOTO UPLOAD */}
+      <ProfilePhotoCropModal
+        file={pendingCropFile}
+        lang={lang}
+        darkMode={darkMode}
+        onCancel={() => setPendingCropFile(null)}
+        onConfirm={(result) => {
+          setPendingCropFile(null);
+          if (cropTargetMode === 'register') {
+            setRegPhotoUrl(result.dataUrl);
+            setRegPhotoStats(result);
+          } else {
+            updateNutritionistPhoto({
+              nutritionistId: portalSelectedNutriId,
+              photoUrl: result.dataUrl,
+            });
+            setPortalPhotoStats(result);
+            setPortalPhotoStatusMsg(
+              isBn
+                ? '✓ প্রোফাইল ফটো সফলভাবে আপডেট হয়েছে'
+                : '✓ Profile photo updated successfully'
+            );
+          }
+        }}
+      />
     </div>
   );
 };

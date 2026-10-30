@@ -28,6 +28,13 @@ import {
   getDefaultSelectedFoodIds,
   generateComprehensiveTrafficLightGuide,
 } from '../data/bdFoodCompositionDatabase';
+import { Share2 } from 'lucide-react';
+import SocialShareModal, { SharePayload } from './SocialShareModal';
+import CrossBorderCuisineBar from './CrossBorderCuisineBar';
+import {
+  getEffectiveResidenceAndCuisine,
+  resolveFoodOrMealSupermarketSwap,
+} from '../services/crossBorderFoodEquivalenceService';
 
 interface Props {
   profile: HealthProfile | null;
@@ -84,6 +91,13 @@ const FoodRecognitionView: React.FC<Props> = ({
   // Modal state with portion scaling (default 100g)
   const [selectedFood, setSelectedFood] = useState<BdFctFoodRecord | null>(null);
   const [modalPortionGrams, setModalPortionGrams] = useState<number>(100);
+  const [foodSharePayload, setFoodSharePayload] = useState<SharePayload | null>(null);
+  const [crossBorderTick, setCrossBorderTick] = useState<number>(0);
+
+  const crossBorderInfo = useMemo(
+    () => getEffectiveResidenceAndCuisine(activeProfile),
+    [activeProfile, crossBorderTick]
+  );
 
   // Food Suggestion Box State
   const [hubState, setHubState] = useState(() => loadPlatformState());
@@ -107,6 +121,105 @@ const FoodRecognitionView: React.FC<Props> = ({
   const approvedSuggestedFoods = hubState.foodSuggestions.filter(
     (f) => f.status === 'approved'
   );
+
+  const handleShareFoodCard = (f: BdFctFoodRecord) => {
+    const tl = classifyBdFoodToTrafficLight(f, activeProfile);
+    const ext = getExternalFunctionalProfile(f);
+    const nameBn = getBdFoodNameBn(f);
+    const nameEn = getBdFoodNameEn(f);
+    const zoneEmoji = tl.zone === 'green' ? '🟢' : tl.zone === 'yellow' ? '🟡' : '🔴';
+    const zoneLabel =
+      tl.zone === 'green'
+        ? isBn
+          ? '🟢 নিরাপদ (Green Zone)'
+          : '🟢 Safe (Green Zone)'
+        : tl.zone === 'yellow'
+        ? isBn
+          ? '🟡 পরিমিত (Yellow Zone)'
+          : '🟡 Moderate (Yellow Zone)'
+        : isBn
+        ? '🔴 বর্জনীয় (Red Zone)'
+        : '🔴 Avoid (Red Zone)';
+
+    const kcal = fmtNutrient(nval(f.kcal), 0, isBn);
+    const prot = fmtNutrient(nval(f.prot), 1, isBn);
+    const carb = fmtNutrient(nval(f.carb), 1, isBn);
+    const fib = fmtNutrient(nval(f.fib), 1, isBn);
+
+    const shareTitle = isBn ? `${nameBn} (${nameEn})` : `${nameEn} (${nameBn})`;
+    const shareSubtitle = isBn
+      ? `${zoneLabel} • পোরশন গাইড: ${tl.portionLimitBn}`
+      : `${zoneLabel} • Portion Guide: ${tl.portionLimitEn}`;
+
+    const shareText = isBn
+      ? `🥗 ফুড গ্লোসারি ও পুষ্টি গাইড (প্রতি ১০০ গ্রাম):\n` +
+        `📌 খাবার: ${nameBn} (${nameEn}) [BD FCT #${f.code}]\n` +
+        `${zoneEmoji} ট্রাফিক লাইট জোন: ${zoneLabel}\n` +
+        `🔥 ক্যালরি: ${kcal} kcal | 🥩 প্রোটিন: ${prot}g | 🌾 কার্ব: ${carb}g | 🌿 ফাইবার: ${fib}g\n` +
+        `🧬 গ্লাইসেমিক ইনডেক্স (GI): ${ext.gi.status} | FODMAP: ${ext.fodmap.status}\n` +
+        `💡 ক্লিনিক্যাল নোট: ${tl.clinicalReasonBn}\n` +
+        `🍽️ প্রস্তাবিত পোরশন: ${tl.portionLimitBn}\n` +
+        `#FoodGlossary #BDFCT #ClinicalNutrition #HealthyFoodGuide`
+      : `🥗 Food Glossary & Nutrition Guide (per 100g):\n` +
+        `📌 Food: ${nameEn} (${nameBn}) [BD FCT #${f.code}]\n` +
+        `${zoneEmoji} Traffic Light Zone: ${zoneLabel}\n` +
+        `🔥 Energy: ${kcal} kcal | 🥩 Protein: ${prot}g | 🌾 Carbs: ${carb}g | 🌿 Fiber: ${fib}g\n` +
+        `🧬 Glycemic Index (GI): ${ext.gi.status} | FODMAP: ${ext.fodmap.status}\n` +
+        `💡 Clinical Verdict: ${tl.clinicalReasonEn}\n` +
+        `🍽️ Suggested Portion: ${tl.portionLimitEn}\n` +
+        `#FoodGlossary #BDFCT #ClinicalNutrition #HealthyFoodGuide`;
+
+    setFoodSharePayload({
+      badge: `${zoneLabel} • BD FCT #${f.code}`,
+      title: shareTitle,
+      subtitle: shareSubtitle,
+      stats: [
+        { label: isBn ? 'ক্যালরি (১০০g)' : 'Energy (100g)', value: `${kcal} kcal` },
+        { label: isBn ? 'প্রোটিন / ফাইবার' : 'Protein / Fiber', value: `${prot}g / ${fib}g` },
+        { label: 'GI / FODMAP', value: `${ext.gi.status} • ${ext.fodmap.status}` },
+      ],
+      shareText,
+    });
+  };
+
+  const handleShareSuggestedFoodCard = (sf: (typeof approvedSuggestedFoods)[number]) => {
+    const zoneLabel =
+      sf.suggestedZone === 'green'
+        ? isBn
+          ? '🟢 নিরাপদ (Green Zone)'
+          : '🟢 Safe (Green Zone)'
+        : sf.suggestedZone === 'yellow'
+        ? isBn
+          ? '🟡 পরিমিত (Yellow Zone)'
+          : '🟡 Moderate (Yellow Zone)'
+        : isBn
+        ? '🔴 বর্জনীয় (Red Zone)'
+        : '🔴 Avoid (Red Zone)';
+
+    const shareText = isBn
+      ? `🥗 ফুড গ্লোসারি (কমিউনিটি অনুমোদিত খাবার):\n` +
+        `📌 খাবার: ${sf.nameBn} (${sf.nameEn})\n` +
+        `🔥 ক্যালরি: ${sf.caloriesPer100g} kcal | P: ${sf.proteinG}g | C: ${sf.carbsG}g | F: ${sf.fatG}g\n` +
+        `💡 উপকারিতা: ${sf.healthBenefitsBn}\n` +
+        `#FoodGlossary #HealthyFood`
+      : `🥗 Food Glossary (Community Approved Food):\n` +
+        `📌 Food: ${sf.nameEn} (${sf.nameBn})\n` +
+        `🔥 Calories: ${sf.caloriesPer100g} kcal | P: ${sf.proteinG}g | C: ${sf.carbsG}g | F: ${sf.fatG}g\n` +
+        `💡 Benefits: ${sf.healthBenefitsEn}\n` +
+        `#FoodGlossary #HealthyFood`;
+
+    setFoodSharePayload({
+      badge: zoneLabel,
+      title: isBn ? `${sf.nameBn} (${sf.nameEn})` : `${sf.nameEn} (${sf.nameBn})`,
+      subtitle: isBn ? sf.healthBenefitsBn : sf.healthBenefitsEn,
+      stats: [
+        { label: isBn ? 'ক্যালরি' : 'Calories', value: `${sf.caloriesPer100g} kcal` },
+        { label: isBn ? 'প্রোটিন' : 'Protein', value: `${sf.proteinG}g` },
+        { label: isBn ? 'কার্ব / ফ্যাট' : 'Carbs / Fat', value: `${sf.carbsG}g / ${sf.fatG}g` },
+      ],
+      shareText,
+    });
+  };
 
   const handleFoodSuggestionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -470,6 +583,15 @@ const FoodRecognitionView: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* Global Residence Location vs. Preferred Food Cuisine Selector */}
+      <CrossBorderCuisineBar
+        profile={activeProfile}
+        lang={lang}
+        darkMode={darkMode}
+        onUpdateProfile={onUpdateProfile}
+        onPreferencesChanged={() => setCrossBorderTick((t) => t + 1)}
+      />
+
       {/* Admin-Approved User Suggested Foods Strip */}
       {approvedSuggestedFoods.length > 0 && (
         <div
@@ -520,9 +642,16 @@ const FoodRecognitionView: React.FC<Props> = ({
                     {isBn ? sf.healthBenefitsBn : sf.healthBenefitsEn}
                   </p>
                 </div>
-                <div className="text-[10px] opacity-60 flex justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
-                  <span>P:{sf.proteinG}g • C:{sf.carbsG}g • F:{sf.fatG}g</span>
-                  <span>By: {sf.submittedByName}</span>
+                <div className="text-[10px] flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <span className="opacity-65">P:{sf.proteinG}g • C:{sf.carbsG}g • F:{sf.fatG}g</span>
+                  <button
+                    type="button"
+                    onClick={() => handleShareSuggestedFoodCard(sf)}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 font-black flex items-center gap-1 transition-all"
+                  >
+                    <Share2 className="w-3 h-3" />
+                    {isBn ? 'শেয়ার' : 'Share'}
+                  </button>
                 </div>
               </div>
             ))}
@@ -1089,6 +1218,36 @@ const FoodRecognitionView: React.FC<Props> = ({
                         {isBn ? tl.clinicalReasonBn : tl.clinicalReasonEn}
                       </p>
                     )}
+
+                    {/* Cross-Border Local Supermarket Equivalent on Food Card */}
+                    {crossBorderInfo.isCrossBorder && (() => {
+                      const localSwap = resolveFoodOrMealSupermarketSwap(
+                        `${getBdFoodNameBn(f)} ${getBdFoodNameEn(f)} ${f.cat || ''}`,
+                        crossBorderInfo.residenceCountry,
+                        crossBorderInfo.preferredCuisineCountry,
+                        crossBorderInfo.supermarketSubstituteMode,
+                        lang
+                      );
+                      return (
+                        <div
+                          className={`mt-2 p-2 rounded-xl border text-[10px] leading-snug ${
+                            darkMode
+                              ? 'bg-indigo-950/30 border-indigo-500/30 text-indigo-200'
+                              : 'bg-indigo-50/70 border-indigo-200/80 text-indigo-950'
+                          }`}
+                        >
+                          <div className="font-bold text-indigo-600 dark:text-indigo-300">
+                            🛒{' '}
+                            {isBn
+                              ? `${localSwap.residenceCountryLabel} সুপারমার্কেট বিকল্প:`
+                              : `${localSwap.residenceCountryLabel} Supermarket Equivalent:`}
+                          </div>
+                          <p className="opacity-90 mt-0.5 line-clamp-2">
+                            {localSwap.equivalentItems}
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Card Footer Actions: 26-Nutrient Popup | Add to Diet Chart | Plate | Compare */}
@@ -1158,6 +1317,20 @@ const FoodRecognitionView: React.FC<Props> = ({
                         title={isBn ? 'তুলনায় রাখুন' : 'Compare Food'}
                       >
                         ⚖️
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleShareFoodCard(f)}
+                        className="px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/25 transition-colors flex items-center gap-1"
+                        title={
+                          isBn
+                            ? 'হোয়াটসঅ্যাপ বা ফেসবুকে ফুড কার্ড শেয়ার করুন'
+                            : 'Share Food Card to WhatsApp or Facebook'
+                        }
+                      >
+                        <Share2 className="w-3 h-3" />
+                        <span>{isBn ? 'শেয়ার' : 'Share'}</span>
                       </button>
                     </div>
                   </div>
@@ -1523,13 +1696,23 @@ const FoodRecognitionView: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSelectedFood(null)}
-                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shrink-0"
-                  >
-                    ✕ {isBn ? 'বন্ধ করুন' : 'Close'}
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleShareFoodCard(selectedFood)}
+                      className="px-3.5 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      {isBn ? 'শেয়ার কার্ড' : 'Share Food'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFood(null)}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shrink-0"
+                    >
+                      ✕ {isBn ? 'বন্ধ করুন' : 'Close'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Scrollable Modal Content */}
@@ -1771,6 +1954,15 @@ const FoodRecognitionView: React.FC<Props> = ({
             </div>
           );
         })()}
+
+      {/* Social Media Share Modal for Food Glossary Cards */}
+      <SocialShareModal
+        isOpen={Boolean(foodSharePayload)}
+        onClose={() => setFoodSharePayload(null)}
+        payload={foodSharePayload}
+        lang={lang}
+        darkMode={Boolean(darkMode)}
+      />
     </div>
   );
 };
