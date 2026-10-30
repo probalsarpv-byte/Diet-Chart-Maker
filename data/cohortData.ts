@@ -1652,6 +1652,134 @@ export const COHORT_QUESTIONS: Record<CohortType, CohortQuestion[]> = {
       ],
     },
   ],
+
+  underweight_nutrition: [
+    {
+      id: 'uw_weight_loss_pattern',
+      cohort: 'underweight_nutrition',
+      category: 'clinical',
+      titleBn: 'আপনার কম ওজন বা ওজন হ্রাসের ধরন ও সময়কাল কেমন?',
+      titleEn: 'What is the pattern and duration of your underweight status or weight loss?',
+      subtitleBn: 'জেনেটিক বাত প্রকৃতি (Ectomorph) নাকি সাম্প্রতিক কোনো ক্লিনিক্যাল কারণে ওজন কমেছে তা নির্ণয়ের জন্য',
+      subtitleEn: 'Differentiates constitutional ectomorphy from acute clinical weight loss',
+      type: 'radio',
+      options: [
+        { labelBn: 'ছোটবেলা বা কৈশোর থেকেই শরীর শুকনো ও হালকা গড়নের (Constitutional / Genetic Vata)', labelEn: 'Naturally thin / ectomorphic frame since childhood or teens', value: 'constitutional_thin', clinicalTag: 'brumhana_steady' },
+        { labelBn: 'গত ৩–৬ মাসে হঠাৎ অনিচ্ছাকৃতভাবে ৩–৫ কেজি বা তার বেশি ওজন কমে গেছে', labelEn: 'Unintentional weight loss of 3–5+ kg over the last 3–6 months', value: 'recent_unintentional_loss', clinicalTag: 'screen_hyperthyroid_malabsorption' },
+        { labelBn: 'কোনো অসুস্থতা, জ্বর, সার্জারি বা ইনফেকশনের পর ওজন কমে আর বাড়ছে না', labelEn: 'Lost weight after illness, fever, infection, or surgery and unable to regain', value: 'post_illness_wasting', clinicalTag: 'convalescent_rebuild' },
+        { labelBn: 'অতিরিক্ত কাজের চাপ, অনিদ্রা ও অনিয়মিত খাওয়ার কারণে ধীরে ধীরে শুকিয়ে যাচ্ছি', labelEn: 'Gradual weight loss due to chronic stress, insomnia, and skipped meals', value: 'stress_burnout_loss', clinicalTag: 'vata_cortisol_calm' },
+      ],
+    },
+    {
+      id: 'uw_root_cause_screening',
+      cohort: 'underweight_nutrition',
+      category: 'clinical',
+      titleBn: 'ওজন না বাড়ার পেছনে নিচের কোন ক্লিনিক্যাল কারণ বা লক্ষণটি আপনার ক্ষেত্রে প্রযোজ্য?',
+      titleEn: 'Which underlying clinical factor best matches your difficulty gaining weight?',
+      subtitleBn: 'হাইপারথাইরয়েডিজম, গাট ম্যালঅ্যাবজর্পশন, পোস্ট-ইনফেকশন এবং মেটাবলিক ওভারবার্ন স্ক্রিনিং',
+      subtitleEn: 'Screens for hyperthyroidism, gut malabsorption/IBS, post-infection catabolism, or high metabolic burn',
+      type: 'radio',
+      options: [
+        { labelBn: 'হাইপারথাইরয়েডিজম বা অতিরিক্ত মেটাবলিক বার্ন (বুক ধড়ফড়, অতিরিক্ত গরম লাগা, হাত কাঁপা)', labelEn: 'Hyperthyroidism / High Metabolic Burn (palpitations, heat intolerance, tremors)', value: 'hyperthyroid_metabolic', clinicalTag: 'hyperthyroid_caloric_shield' },
+        { labelBn: 'হজমশক্তি হ্রাস, ক্রনিক আইবিএস (IBS), সিলিয়াক বা পুষ্টি শোষণজনিত সমস্যা (Malabsorption)', labelEn: 'Poor Gut Absorption, Chronic IBS, Diarrhea, or Celiac Malabsorption', value: 'gut_malabsorption', clinicalTag: 'agni_deepana_gut_heal' },
+        { labelBn: 'টাইফয়েড, ডেঙ্গু, টিবি, দীর্ঘমেয়াদী ডায়রিয়া বা ইনফেকশন পরবর্তী শারীরিক ক্ষয়', labelEn: 'Post-Infection / Post-Viral / TB Convalescence & Catabolic Weakness', value: 'post_infection_catabolic', clinicalTag: 'high_protein_immunonutrition' },
+        { labelBn: 'কোনো নির্দিষ্ট রোগ ধরা পড়েনি — পরিবারগতভাবেই মেটাবলিজম ফাস্ট বা বাতজ প্রকৃতি', labelEn: 'No diagnosed disease — naturally fast metabolism or high Vata constitution', value: 'genetic_ectomorph_stress', clinicalTag: 'snigdha_brumhana' },
+      ],
+    },
+    {
+      id: 'uw_appetite_early_satiety',
+      cohort: 'underweight_nutrition',
+      category: 'symptom',
+      titleBn: 'আপনার ক্ষুধা ও খাবারের রুচি (Appetite & Early Satiety) কেমন থাকে?',
+      titleEn: 'How is your daily appetite and satiety response during meals?',
+      subtitleBn: 'আয়ুর্বেদিক অগ্নিমান্দ্য (Low Digestive Fire) বনাম তীক্ষ্ণ অগ্নি (Hyper-metabolism) যাচাই',
+      subtitleEn: 'Assesses Agnimandya (hypoacidity/early satiety) vs. Tikshna Agni (rapid burn)',
+      type: 'radio',
+      options: [
+        { labelBn: 'ক্ষুধা খুবই কম, খাবারের প্রতি একদম রুচি আসে না (Agnimandya / Anorexia)', labelEn: 'Very poor appetite; rarely feel hungry at mealtimes', value: 'poor_appetite', clinicalTag: 'ginger_lime_agni_primer' },
+        { labelBn: 'ক্ষুধা লাগে, কিন্তু ২–৪ লোকমা খেলেই পেট ভরে যায় ও ভারী লাগে (Early Satiety)', labelEn: 'Feel hungry initially, but get full and bloated after just a few bites', value: 'early_satiety', clinicalTag: 'small_calorie_dense_meals' },
+        { labelBn: 'স্বাভাবিক বা প্রচুর খাবার খাই, কিন্তু তবুও শরীরের ওজন একদম বাড়ে না', labelEn: 'Eat normal or large portions regularly, yet weight does not increase', value: 'eats_well_no_gain', clinicalTag: 'malabsorption_or_hypermetabolic' },
+        { labelBn: 'মানসিক চাপ বা দুশ্চিন্তা বাড়লে গলা দিয়ে খাবার নামে না', labelEn: 'Appetite completely shuts down during stress or anxiety', value: 'stress_anorexia', clinicalTag: 'vata_pacifying_warm_meals' },
+      ],
+    },
+    {
+      id: 'uw_gut_malabsorption',
+      cohort: 'underweight_nutrition',
+      category: 'symptom',
+      titleBn: 'দুধ, ঘি, মাংস বা ভারী খাবার খেলে পেটের প্রতিক্রিয়া কেমন হয়?',
+      titleEn: 'How does your gut react when you consume rich foods (milk, ghee, meat, or heavy meals)?',
+      subtitleBn: 'অন্ত্রে ফ্যাট ও প্রোটিন শোষণ ক্ষমতা (Villous Absorption & Enzymes) নির্ণয়ের জন্য',
+      subtitleEn: 'Evaluates pancreatic/biliary enzyme sufficiency and mucosal absorption',
+      type: 'radio',
+      options: [
+        { labelBn: 'সহজেই হজম হয়, কোনো পেট ফাঁপা বা অস্বস্তি হয় না', labelEn: 'Digests smoothly without bloating or bowel distress', value: 'good_tolerance' },
+        { labelBn: 'খাওয়ার পরপরই টয়লেটে যেতে হয় বা নরম/আঁশযুক্ত পায়খানা হয় (Gastrocolic reflex / IBS-D)', labelEn: 'Urgent loose stools or undigested food in stool shortly after eating', value: 'ibs_loose_stools', clinicalTag: 'curd_bel_fermented_gut' },
+        { labelBn: 'দুধ বা তৈলাক্ত খাবার খেলে পেট ফেঁপে থাকে, ঢেকুর ওঠে ও বমি ভাব হয়', labelEn: 'Heavy bloating, acid reflux, or nausea after dairy or rich fats', value: 'fat_dairy_intolerance', clinicalTag: 'lactose_free_enzyme_support' },
+        { labelBn: 'পেট পরিষ্কার হয় না, শুষ্ক কোষ্ঠকাঠিন্য (Vata Constipation) থাকে', labelEn: 'Dry, hard stools and chronic constipation', value: 'vata_constipation', clinicalTag: 'ghee_warm_milk_lubrication' },
+      ],
+    },
+    {
+      id: 'uw_muscle_wasting_sarcopenia',
+      cohort: 'underweight_nutrition',
+      category: 'clinical',
+      titleBn: 'মাংসপেশির ক্ষয় (Sarcopenia) ও শারীরিক শক্তির বর্তমান অবস্থা কেমন?',
+      titleEn: 'What is your current muscle mass and physical stamina status?',
+      subtitleBn: 'মাংস ধাতু (Mamsa Dhatu) ও প্রোটিন-অ্যানাবলিক চাহিদা নির্ধারণের জন্য',
+      subtitleEn: 'Evaluates skeletal muscle wasting and protein synthesis requirements',
+      type: 'radio',
+      options: [
+        { labelBn: 'হালকা গড়ন হলেও দৈনন্দিন কাজকর্মে ভালো শক্তি ও স্ট্যামিনা পাই', labelEn: 'Slender frame, but maintain good daily energy and stamina', value: 'slender_energetic' },
+        { labelBn: 'হাত, পা ও কাঁধের পেশি শুকিয়ে গেছে, কলারবোন বা হাড় স্পষ্ট দেখা যায়', labelEn: 'Visible muscle wasting in arms, legs, and shoulders; prominent bones', value: 'visible_muscle_wasting', clinicalTag: 'leucine_high_protein_protocol' },
+        { labelBn: 'সিঁড়ি ভাঙলে বা অল্প পরিশ্রমেই বুক ধড়ফড় করে, পায়ে খিল ধরে ও ক্লান্ত লাগে', labelEn: 'Exhausted after climbing stairs or light effort; muscle cramps', value: 'severe_fatigue_weakness', clinicalTag: 'iron_electrolyte_amino_boost' },
+      ],
+    },
+    {
+      id: 'uw_calorie_dense_tolerance',
+      cohort: 'underweight_nutrition',
+      category: 'lifestyle',
+      titleBn: 'স্বাস্থ্যকর ওজন বৃদ্ধির জন্য নিচের কোন ক্যালোরি-ডেন্স খাবারগুলো আপনার পছন্দ ও সহ্য হয়?',
+      titleEn: 'Which healthy calorie-dense Brumhana foods do you enjoy and tolerate well?',
+      subtitleBn: 'একাধিক অপশন সিলেক্ট করতে পারেন — এগুলো দিয়ে আপনার হাই-ক্যালোরি মিল ও বুস্টার সাজানো হবে',
+      subtitleEn: 'Select all that apply — used to customize your high-calorie meals and shakes',
+      type: 'checkbox',
+      options: [
+        { labelBn: 'খাঁটি দেশি গাওয়া ঘি, মাখন ও নারিকেলের দুধ (Healthy Fats)', labelEn: 'Pure Deshi Cow Ghee, Butter & Coconut Milk', value: 'ghee_coconut_fats' },
+        { labelBn: 'ভেজানো কাঠবাদাম, কাজুবাদাম, আখরোট, সাদা তিল ও খেজুর (Nuts, Seeds & Dates)', labelEn: 'Soaked Almonds, Cashews, Walnuts, Sesame & Dates', value: 'nuts_dates_seeds' },
+        { labelBn: 'দেশি ডিম, মাছ (রুই/ইলিশ/শিং) ও দেশি মুরগির মাংস (First-Class Animal Protein)', labelEn: 'Deshi Eggs, Fish & Deshi Chicken', value: 'eggs_fish_chicken' },
+        { labelBn: 'গরুর দুধ, ঘরে পাতা মিষ্টি/টক দই, ছানা ও পনির (Dairy & Paneer)', labelEn: 'Whole Cow Milk, Homemade Curd, Chhena & Paneer', value: 'milk_curd_paneer' },
+        { labelBn: 'যবের ছাতু, পাকা কলা, মিষ্টি আলু ও মুগ ডালের খিচুড়ি (Complex Carbs)', labelEn: 'Roasted Gram/Barley Sattu, Ripe Banana, Sweet Potato & Khichuri', value: 'sattu_banana_sweetpotato' },
+      ],
+    },
+    {
+      id: 'uw_meal_frequency_skipping',
+      cohort: 'underweight_nutrition',
+      category: 'lifestyle',
+      titleBn: 'দৈনন্দিন খাবার খাওয়ার সময়ানুবর্তিতা ও মিল স্কিপিংয়ের অভ্যাস কেমন?',
+      titleEn: 'How consistent are your daily meal timings and eating frequency?',
+      type: 'radio',
+      options: [
+        { labelBn: 'সময়মতো ৩–৪ বেলা খাবার খাই, কোনো বেলা বাদ পড়ে না', labelEn: 'Eat 3–4 meals on time daily without skipping', value: 'regular_meals' },
+        { labelBn: 'সকালে দেরিতে ওঠা বা তাড়াহুড়োর কারণে প্রায়ই সকালের নাস্তা বাদ পড়ে', labelEn: 'Frequently skip or delay morning breakfast', value: 'skips_breakfast', clinicalTag: 'morning_calorie_anchor' },
+        { labelBn: 'কাজের চাপে দুপুরে বা রাতে ৫–৬ ঘণ্টা টানা না খেয়ে থাকা হয়', labelEn: 'Long fasting gaps (5–6+ hours) due to work or study', value: 'long_fasting_gaps', clinicalTag: 'portable_energy_bites' },
+        { labelBn: 'চা, কফি বা ধূমপানের কারণে মূল খাবারের ক্ষুধা নষ্ট হয়ে যায়', labelEn: 'Tea, coffee, or smoking suppresses main meal appetite', value: 'caffeine_appetite_suppression', clinicalTag: 'reduce_tannin_caffeine' },
+      ],
+    },
+    {
+      id: 'uw_micronutrient_deficiency',
+      cohort: 'underweight_nutrition',
+      category: 'symptom',
+      titleBn: 'পুষ্টিহীনতা বা ভিটামিন-মিনারেল ঘাটতির কোন লক্ষণগুলো আপনার শরীরে দেখা যাচ্ছে?',
+      titleEn: 'Which signs of micronutrient or tissue depletion are you experiencing?',
+      type: 'checkbox',
+      options: [
+        { labelBn: 'চোখের নিচে কালচে ভাব, ফ্যাকাসে ত্বক ও মাথা ঘোরা (রক্তশূন্যতা / Anemia)', labelEn: 'Dark circles, pale skin/conjunctiva, dizziness (Anemia)', value: 'anemia_pallor' },
+        { labelBn: 'অতিরিক্ত চুল পড়া, রুক্ষ ত্বক ও নখ সহজে ভেঙে যাওয়া (Protein/Zinc/Biotin ঘাটতি)', labelEn: 'Hair fall, dry skin, and brittle nails (Protein/Zinc deficiency)', value: 'hair_nail_depletion' },
+        { labelBn: 'হাড়, কোমর ও জয়েন্টে ব্যথা বা কটকট শব্দ হওয়া (Calcium & Vitamin D ঘাটতি)', labelEn: 'Bone ache, lower back pain, or joint clicking (Calcium/Vit D)', value: 'bone_joint_ache' },
+        { labelBn: 'মুখে বা জিহ্বায় ঘন ঘন ঘা হওয়া ও হাত-পা ঝিনঝিন করা (B-Complex ঘাটতি)', labelEn: 'Recurrent mouth ulcers or tingling hands/feet (B-Vitamin deficiency)', value: 'b_complex_deficiency' },
+        { labelBn: 'এমন কোনো বিশেষ লক্ষণ নেই', labelEn: 'No specific micronutrient deficiency symptoms', value: 'none' },
+      ],
+    },
+  ],
 };
 
 // -------------------------------------------------------------
@@ -1903,6 +2031,53 @@ export const COHORT_LAB_MARKERS: Record<CohortType, CohortLabMarker[]> = {
       interpretationEn: 'Byproduct of visceral purine clearance and high fructose intake.',
     },
   ],
+
+  underweight_nutrition: [
+    {
+      id: 'uw_hb',
+      nameBn: 'Hemoglobin — Hb (হিমোগ্লোবিন)',
+      nameEn: 'Hemoglobin (Hb)',
+      unit: 'g/dL',
+      standardRange: '১২.০ – ১৬.০ g/dL',
+      normalMin: 12.0,
+      normalMax: 16.0,
+      interpretationBn: '১২.০ এর নিচে থাকলে রক্তশূন্যতা দূর করতে আয়রন, ফোলেট ও প্রোটিন সমৃদ্ধ বৃংহণ পথ্য আবশ্যক।',
+      interpretationEn: 'Levels below 12.0 g/dL indicate anemia limiting cellular oxygen delivery and muscle synthesis.',
+    },
+    {
+      id: 'uw_tsh',
+      nameBn: 'Serum TSH (থাইরয়েড হরমোন — হাইপারথাইরয়েড স্ক্রিনিং)',
+      nameEn: 'Serum TSH (Thyroid Stimulating Hormone)',
+      unit: 'mIU/L',
+      standardRange: '০.৪৫ – ৪.৫ mIU/L',
+      normalMin: 0.45,
+      normalMax: 4.5,
+      interpretationBn: '০.৪৫ এর নিচে নামলে হাইপারথাইরয়েডিজমের কারণে অতিরিক্ত ক্যালোরি বার্ন ও দ্রুত ওজন হ্রাস ঘটে।',
+      interpretationEn: 'TSH < 0.45 mIU/L suggests hyperthyroidism causing hyper-metabolic weight and muscle loss.',
+    },
+    {
+      id: 'uw_albumin',
+      nameBn: 'Serum Albumin (রক্তের প্রোটিন ও পেশি রিজার্ভ)',
+      nameEn: 'Serum Albumin',
+      unit: 'g/dL',
+      standardRange: '৩.৮ – ৫.২ g/dL',
+      normalMin: 3.8,
+      normalMax: 5.2,
+      interpretationBn: '৩.৮ এর নিচে থাকলে প্রোটিন ম্যালঅ্যাবজর্পশন বা পেশিক্ষয় (Sarcopenia) নির্দেশ করে।',
+      interpretationEn: 'Direct clinical marker of visceral protein status, gut absorption, and lean mass reserves.',
+    },
+    {
+      id: 'uw_vit_d',
+      nameBn: 'Serum Vitamin D3 (২৫-ওএইচ ভিটামিন ডি)',
+      nameEn: 'Serum 25-OH Vitamin D3',
+      unit: 'ng/mL',
+      standardRange: '৩০ – ৬০ ng/mL',
+      normalMin: 30,
+      normalMax: 60,
+      interpretationBn: '৩০ এর নিচে থাকলে হাড়ের ঘনত্ব ও পেশির শক্তি বৃদ্ধিতে বাধার সৃষ্টি হয়।',
+      interpretationEn: 'Essential steroid pro-hormone for skeletal bone mineralization and muscle fiber strength.',
+    },
+  ],
 };
 
 // -------------------------------------------------------------
@@ -2086,6 +2261,54 @@ export const COHORT_NUTRIENT_BOOSTERS: Record<CohortType, NutrientBooster[]> = {
         'দুপুর ও রাতের ভারী খাবারের ঠিক ১৫ মিনিট পূর্বে ১ গ্লাস পানিতে ১ চামচ ইসবগুল বা চিয়া সিড ও লেবুর রস গুলিয়ে সাথে সাথে পান করুন।',
       homeRecipeEn:
         'Stir 1 tsp psyllium husk or soaked chia with lemon into 1 glass water; drink 15 minutes before lunch and dinner.',
+    },
+  ],
+
+  underweight_nutrition: [
+    {
+      id: 'uw_brumhana_energy_bites',
+      nutrientNameBn: 'খেজুর-বাদাম-তিল ও দেশি ঘি বৃংহণ বল (Calorie-Dense Brumhana Bites)',
+      nutrientNameEn: 'High-Calorie Ayurvedic Brumhana Date-Nut-Sesame Bites',
+      foodSourcesBn: ['নরম খেজুর (৩টি)', 'ভেজানো কাঠবাদাম ও কাজুবাদাম (৮টি)', 'ভাজা সাদা তিল (১ চামচ)', 'খাঁটি দেশি গাওয়া ঘি (১ চামচ)'],
+      foodSourcesEn: ['Soft Medjool dates (3)', 'Soaked almonds & cashews (8)', 'Roasted white sesame (1 tbsp)', 'Pure A2 Deshi Ghee (1 tsp)'],
+      clinicalMechanismBn:
+        'অল্প পরিমাণে (কম ভলিউমে) প্রায় ৩২০+ স্বাস্থ্যকর ক্যালোরি, এমসিটি ফ্যাট, ক্যালসিয়াম ও আয়রন সরবরাহ করে যা আর্লি স্যাটিয়েটি (অল্প খেলেই পেট ভরে যাওয়া) পেশেন্টদের ওজন ও মাংস ধাতু দ্রুত বৃদ্ধি করে।',
+      clinicalMechanismEn:
+        'Delivers ~320+ clean calories in a compact volume without gastric distension, ideal for overcoming early satiety and rebuilding Mamsa & Meda Dhatu.',
+      homeRecipeBn:
+        'বীজ ছাড়ানো খেজুর, কাঠবাদাম, কাজুবাদাম ও ভাজা সাদা তিল ১ চামচ খাঁটি ঘিয়ে হালকা নেড়ে ছোট লাড্ডু বা বল বানিয়ে নিন। সকাল ১১টা ও বিকেল ৫টায় ১টি করে খান।',
+      homeRecipeEn:
+        'Warm pitted dates, crushed almonds, cashews, and roasted sesame in 1 tsp pure ghee; roll into bite-sized energy balls. Take 1 mid-morning and 1 in the afternoon.',
+    },
+    {
+      id: 'uw_lean_mass_sattu_shake',
+      nutrientNameBn: 'ছাতু, পাকা কলা ও দই/দুধের লিন-মাস প্রো-অ্যাবজর্পশন শেক',
+      nutrientNameEn: 'Lean Muscle Sattu, Banana & Probiotic Recovery Shake',
+      foodSourcesBn: ['ভাজা ছোলা বা যবের ছাতু (৩ টেবিল চামচ)', 'পাকা সাগর কলা (১টি)', 'ঘরে পাতা দই বা দুধ (১ গ্লাস)', 'খেজুর গুড় বা মধু (১ চামচ)'],
+      foodSourcesEn: ['Roasted gram/barley sattu (3 tbsp)', 'Ripe banana (1)', 'Whole milk or probiotic curd (1 cup)', 'Date jaggery or raw honey (1 tsp)'],
+      clinicalMechanismBn:
+        'ছাতুর প্রি-ডাইজেস্টেড অ্যামিনো অ্যাসিড এবং কলার পটাশিয়াম ও কার্বোহাইড্রেট ইনসুলিন-মেডিয়েটেড অ্যানাবলিক সিগন্যালিং সচল করে ক্ষয়প্রাপ্ত পেশি (Sarcopenia) পুনর্গঠন করে।',
+      clinicalMechanismEn:
+        'Roasted sattu provides pre-gelatinized complex carbs and bioavailable plant protein that rapidly replenish muscle glycogen and stimulate myofibrillar protein synthesis.',
+      homeRecipeBn:
+        '১ গ্লাস দুধ বা ঘোল/দইয়ের সাথে ৩ চামচ ছাতু, ১টি পাকা কলা ও ১ চামচ গুড় ব্লেন্ড করে সকালের নাস্তার পর বা ব্যায়ামের পর পান করুন (পেটের সমস্যা থাকলে দুধের বদলে দইয়ের ঘোল ব্যবহার করুন)।',
+      homeRecipeEn:
+        'Blend 3 tbsp sattu, 1 ripe banana, and 1 tsp jaggery with warm milk (or probiotic buttermilk if lactose-sensitive) for an easy +380 kcal anabolic drink.',
+    },
+    {
+      id: 'uw_agni_deepana_primer',
+      nutrientNameBn: 'আদা-জিরা-লেবু অগ্নি দীপন প্রি-মিল টনিক (Gut Absorption Primer)',
+      nutrientNameEn: 'Ginger-Cumin-Lime Digestive Agni & Villous Absorption Primer',
+      foodSourcesBn: ['তাজা আদার রস (১ চামচ)', 'পাতিলেবুর রস (১ চামচ)', 'ভাজা জিরা গুঁড়া (১/৪ চামচ)', 'হিমালয়ান পিংক সল্ট (১ চিমটি)'],
+      foodSourcesEn: ['Fresh ginger juice (1 tsp)', 'Fresh lime juice (1 tsp)', 'Roasted cumin powder (1/4 tsp)', 'Himalayan pink salt (1 pinch)'],
+      clinicalMechanismBn:
+        'হাইপোঅ্যাসিডিটি ও আইবিএস-জনিত ম্যালঅ্যাবজর্পশন দূর করতে খাবারের আগে পাকস্থলীর হাইড্রোক্লোরিক অ্যাসিড (HCl) ও অগ্ন্যাশয়ের প্রোটিয়েজ-লাইপেজ এনজাইম নিঃসরণ সক্রিয় করে।',
+      clinicalMechanismEn:
+        'Stimulates gastric HCl, bile flow, and pancreatic protease/lipase enzymes prior to meals so calorie-dense foods are absorbed into tissues rather than fermented.',
+      homeRecipeBn:
+        'দুপুর ও রাতের খাবারের ১৫ মিনিট আগে অর্ধেক কাপ কুসুম গরম পানিতে ১ চামচ আদার রস, লেবুর রস, ভাজা জিরা ও এক চিমটি পিংক সল্ট মিশিয়ে ছোট চুমুকে পান করুন।',
+      homeRecipeEn:
+        'Sip 1/2 cup warm water mixed with fresh ginger juice, lime juice, roasted cumin, and a pinch of pink salt 15 minutes before lunch and dinner.',
     },
   ],
 };

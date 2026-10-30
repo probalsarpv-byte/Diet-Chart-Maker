@@ -9,6 +9,7 @@ import {
   Apple,
   AlertTriangle,
   Calendar,
+  Flame,
 } from 'lucide-react';
 import { CohortType, Language } from '../types';
 
@@ -172,6 +173,32 @@ export const CohortSelector: React.FC<Props> = ({
       ],
       gradient: 'from-cyan-600 via-blue-600 to-indigo-700',
       borderActive: 'border-cyan-500 ring-2 ring-cyan-500/20',
+    },
+    {
+      id: 'underweight_nutrition',
+      icon: Flame,
+      badgeBn: 'হেলদি ক্যালোরিক সারপ্লাস + লিন মাসল + গাট অগ্নি দীপন',
+      badgeEn: 'Healthy Caloric Surplus + Lean Mass + Agni Deepana',
+      titleBn: 'আন্ডারওয়েট ও পুষ্টিহীনতা রিকভারি (Underweight & Healthy Weight Gain)',
+      titleEn: 'Clinical Underweight, Malabsorption & Lean Mass Gain',
+      descriptionBn:
+        'অতিরিক্ত শুকিয়ে যাওয়া (BMI < 18.5), রুচিহীনতা, আইবিএস/ম্যালঅ্যাবজর্পশন, হাইপারথাইরয়েড বা অসুস্থতা-পরবর্তী পেশিক্ষয় দূর করে স্বাস্থ্যকর ওজন ও পেশি বৃদ্ধির (Brumhana) বিশেষায়িত ডায়েট।',
+      descriptionEn:
+        'Integrative Brumhana (nourishing) caloric surplus, gut enzyme restoration, and lean muscle building for underweight patients (BMI < 18.5), malabsorption, hyperthyroidism, and post-illness sarcopenia.',
+      featuresBn: [
+        '৩০–৩২টি মূল প্রশ্নের সাথে ১০টি বিশেষ আন্ডারওয়েট ক্লিনিক্যাল স্ক্রিনিং',
+        'হাইপারথাইরয়েড, আইবিএস/ম্যালঅ্যাবজর্পশন ও পোস্ট-ইনফেকশন কারণ বিশ্লেষণ',
+        'গাট অগ্নি দীপন + লিন মাসল বিল্ডিং + হেলদি ক্যালোরিক সারপ্লাস মিল প্ল্যান',
+        'ঐচ্ছিক ল্যাব মার্কার (Hb, TSH, Albumin, Vit D3) ও ক্যালোরি-ডেন্স বুস্টার',
+      ],
+      featuresEn: [
+        '30–32 foundational questions + 10 specialized underweight clinical questions',
+        'Screens hyperthyroidism, gut malabsorption/IBS, and post-infection sarcopenia',
+        'Healthy Caloric Surplus + Lean Muscle Building + Gut Agni Deepana plan',
+        'Optional lab markers (Hb, TSH, Albumin, Vit D3) & high-calorie Brumhana boosters',
+      ],
+      gradient: 'from-teal-500 via-emerald-500 to-lime-600',
+      borderActive: 'border-teal-500 ring-2 ring-teal-500/20',
     },
   ];
 

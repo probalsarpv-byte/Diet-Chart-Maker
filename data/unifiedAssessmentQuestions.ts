@@ -872,6 +872,39 @@ export const EXTRA_COHORT_QUESTIONS: Record<CohortType, CohortQuestion[]> = {
       ],
     },
   ],
+
+  underweight_nutrition: [
+    {
+      id: 'uw_sleep_cortisol_stress',
+      cohort: 'underweight_nutrition',
+      category: 'lifestyle',
+      titleBn: 'রাতের ঘুমের মান, রাত জাগা এবং মানসিক চাপের কারণে ক্ষুধা বা ওজন কমে যাওয়ার প্রবণতা কেমন?',
+      titleEn: 'Sleep Architecture, Late Nights & Stress-Induced Appetite/Weight Suppression',
+      subtitleBn: 'অতিরিক্ত কর্টিসল ও বাত প্রকোপ শরীরের পেশি ভেঙে ফেলে (Catabolic Cortisol) এবং হজম রস শুকিয়ে দেয়',
+      subtitleEn: 'Chronic cortisol and Vata aggravation accelerate muscle catabolism and suppress cephalic digestive secretions',
+      type: 'radio',
+      options: [
+        { labelBn: 'রাত ১১টার মধ্যে ঘুমিয়ে পড়ি এবং ঘুম গভীর ও স্বাভাবিক', labelEn: 'Sleep by 11 PM with restorative deep sleep', value: 'good_sleep_low_stress' },
+        { labelBn: 'রাত ১২–২টা পর্যন্ত জাগা হয় এবং ঘুম হালকা বা বারবার ভেঙে যায়', labelEn: 'Sleep late (12–2 AM) with light or fragmented sleep', value: 'late_sleep_vata', clinicalTag: 'nocturnal_anabolic_recovery' },
+        { labelBn: 'মানসিক চাপ, দুশ্চিন্তা বা কাজের চাপে গলা দিয়ে খাবার নামে না এবং দ্রুত ওজন কমে যায়', labelEn: 'Anxiety/stress completely shuts down appetite and causes rapid weight drop', value: 'stress_anorexia_cortisol', clinicalTag: 'adaptogenic_nervine_brumhana' },
+      ],
+    },
+    {
+      id: 'uw_target_gain_strategy',
+      cohort: 'underweight_nutrition',
+      category: 'clinical',
+      titleBn: 'আপনার স্বাস্থ্যকর ওজন ও পেশি বৃদ্ধির (Brumhana) প্রধান লক্ষ্য ও পছন্দের গতি কেমন?',
+      titleEn: 'Primary Healthy Weight Gain & Lean Mass Building (Brumhana) Strategy',
+      subtitleBn: 'পেটে মেদ না জমিয়ে হেলদি ক্যালোরিক সারপ্লাস, লিন মাসল ও গাট অগ্নি দীপন প্রটোকল নির্ধারণের জন্য',
+      subtitleEn: 'Tailors the daily caloric surplus (+450 to +600 kcal), protein target, and digestive priming schedule',
+      type: 'radio',
+      options: [
+        { labelBn: 'ধীরে ও স্থায়ীভাবে লিন মাসল ও শক্তি বৃদ্ধি (মাসে ১.৫ – ২ কেজি স্বাস্থ্যকর ওজন বৃদ্ধি)', labelEn: 'Steady Lean Muscle & Stamina Gain (1.5–2 kg/month clean surplus)', value: 'steady_lean_gain', clinicalTag: 'surplus_450_lean' },
+        { labelBn: 'দ্রুত শারীরিক ঘাটতি ও দুর্বলতা পূরণ (মাসে ২.৫ – ৩ কেজি ক্যালোরি-ডেন্স রিকভারি)', labelEn: 'Accelerated Recovery from Severe Thinness/Weakness (2.5–3 kg/month)', value: 'accelerated_brumhana', clinicalTag: 'surplus_600_dense' },
+        { labelBn: 'আগে পেটের হজমশক্তি ও রুচি ঠিক করে তারপর ধীরে ধীরে ওজন বাড়ানো (Gut-First Approach)', labelEn: 'Heal Gut Absorption & Appetite First, Then Gradual Weight Gain', value: 'gut_first_brumhana', clinicalTag: 'agni_deepana_first' },
+      ],
+    },
+  ],
 };
 
 // ============================================================================
@@ -1469,6 +1502,11 @@ export function getUnifiedAssessmentTabs(
       titleEn: 'Disease-Specific Metabolic & Organ Deep-Dive (10 Questions)',
       icon: '❤️‍🩹',
     },
+    underweight_nutrition: {
+      titleBn: 'আন্ডারওয়েট, পেশিক্ষয় ও বৃংহণ (Brumhana) বিশেষ প্রশ্ন (১০টি প্রশ্ন)',
+      titleEn: 'Clinical Underweight, Malabsorption & Lean Mass Gain Deep-Dive (10 Questions)',
+      icon: '💪',
+    },
   };
 
   const tabs: UnifiedAssessmentTab[] = [
@@ -1595,7 +1633,7 @@ export function computeUnifiedClinicalAnalysis(
   analysis: AssessmentAnalysis;
 } {
   const defaultAge = cohort === 'child_pediatric' ? 6 : cohort === 'adolescent_growth' ? 15 : 32;
-  const defaultWeight = cohort === 'child_pediatric' ? 20 : cohort === 'adolescent_growth' ? 48 : 65;
+  const defaultWeight = cohort === 'child_pediatric' ? 20 : cohort === 'underweight_nutrition' ? 44 : cohort === 'adolescent_growth' ? 48 : 65;
   const defaultHeight = cohort === 'child_pediatric' ? 115 : cohort === 'adolescent_growth' ? 158 : 162;
 
   const age = Math.max(1, parseInt(flatAnswers['basic_age'] || '', 10) || defaultAge);

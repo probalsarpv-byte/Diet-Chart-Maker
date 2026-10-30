@@ -368,7 +368,8 @@ export type CohortType =
   | 'child_pediatric'
   | 'oncology_cancer'
   | 'adolescent_growth'
-  | 'adult_metabolic';
+  | 'adult_metabolic'
+  | 'underweight_nutrition';
 
 export interface CohortLabMarker {
   id: string;

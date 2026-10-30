@@ -162,6 +162,13 @@ export class MakerCheckerEngine {
       checksPassedEn.push(
         'Adolescent Hormonal, Iron & Peak Bone Density Protocol Verified'
       );
+    } else if (cohort === 'underweight_nutrition') {
+      checksPassedBn.push(
+        'আন্ডারওয়েট বৃংহণ (Brumhana) হেলদি ক্যালোরিক সারপ্লাস, লিন মাসল ও গাট অগ্নি দীপন প্রোটোকল যাচাইকৃত'
+      );
+      checksPassedEn.push(
+        'Underweight Brumhana Caloric Surplus, Lean Muscle & Gut Agni Deepana Protocol Verified'
+      );
     } else {
       checksPassedBn.push(
         `মেটাবলিক কন্ডিশন (${profile.medicalConditions || 'ইনসুলিন ও লিভার ব্যালেন্স'}) অনুযায়ী গ্লাইসেমিক নিরাপত্তা যাচাইকৃত`

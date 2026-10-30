@@ -235,7 +235,7 @@ export const CohortAssessmentForm: React.FC<Props> = ({
           else if (q.id === 'basic_height')
             next[q.id] = cohort === 'child_pediatric' ? '114' : '162';
           else if (q.id === 'basic_weight')
-            next[q.id] = cohort === 'child_pediatric' ? '19' : '66';
+            next[q.id] = cohort === 'child_pediatric' ? '19' : cohort === 'underweight_nutrition' ? '44' : '66';
           else if (q.id === 'shakti_last_period')
             next[q.id] = new Date(Date.now() - 12 * 86400000).toISOString().split('T')[0];
           else if (q.type === 'radio' && q.options && q.options.length > 0) {
@@ -375,6 +375,10 @@ export const CohortAssessmentForm: React.FC<Props> = ({
     adult_metabolic: {
       bn: 'অ্যাডাল্ট মেটাবলিক, বিকৃতি, মাইক্রোবায়োম ও রোগভিত্তিক সম্পূর্ণ অ্যাসেসমেন্ট প্যাকেজ',
       en: 'Adult Metabolic, Vikriti, Microbiome & Disease-Specific Clinical Package',
+    },
+    underweight_nutrition: {
+      bn: 'আন্ডারওয়েট, গাট শোষণ ও স্বাস্থ্যকর ওজন বৃদ্ধি (Brumhana) — সম্পূর্ণ অ্যাসেসমেন্ট প্যাকেজ',
+      en: 'Clinical Underweight, Gut Absorption & Lean Mass Gain — Complete Assessment Package',
     },
   };
 

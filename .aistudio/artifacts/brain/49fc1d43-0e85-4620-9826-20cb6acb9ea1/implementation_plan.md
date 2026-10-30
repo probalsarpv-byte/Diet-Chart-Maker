@@ -1,104 +1,46 @@
-# Universal Residence vs. Dietary Heritage & Cross-Border Supermarket Substitute Engine
+# আন্ডারওয়েট পেশেন্ট ডোমেইন (Clinical Underweight & Brumhana Recovery Diet) ইমপ্লিমেন্টেশন প্ল্যান
 
-Decouples a user's **Current Country of Residence** (climate, seasonal metabolism, and local retail grocery availability) from their **Preferred Dietary Cuisine / Food Heritage** (cultural meals, traditional staples, and familiar recipes), while automatically providing nutritionally equivalent **Local Supermarket Substitutes** for any residence–heritage country pair worldwide.
+## ১. মূল লক্ষ্য ও কাঠামো (Core Objective)
+ডায়েট চার্ট ফিচারের বিদ্যমান ডোমেইনগুলোর (প্রেগন্যান্সি ও ল্যাকটেশন, পেডিয়াট্রিক, অনকোলজি/ক্যান্সার, অ্যাডোলেসেন্ট গ্রোথ এবং অ্যাডাল্ট মেটাবলিক) পাশাপাশি **আন্ডারওয়েট পেশেন্টদের (Underweight & Nutritional Recovery — `'underweight_nutrition'`)** জন্য একটি নতুন ক্লিনিক্যাল ডোমেইন যুক্ত করা হবে।
 
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following architectural and UX decisions reflect your confirmed choices and establish how cross-border nutrition planning works for any nationality living anywhere in the world.
-
-- **Confirmed Decision 1 — Dual Independent Selectors (Residence vs. Food Heritage)**: Users explicitly select two independent parameters in their profile, onboarding assessment, and diet header:
-  1. **Current Country of Residence (বর্তমান অবস্থানরত দেশ)**: Governs climate/weather adaptation, seasonal hydration, circadian timing, and which local supermarket chains exist around the user.
-  2. **Preferred Dietary Cuisine / Food Country (পছন্দের খাবারের দেশ / খাদ্য সংস্কৃতি)**: Governs the primary meals, recipes, spices, and staple foods used to construct the clinical diet chart.
-- **Confirmed Decision 2 — Dual-Layer Meal & Ingredient Display (Heritage Food + Local Supermarket Equivalent)**: Whenever a user's Current Country of Residence differs from their Preferred Food Country (Cross-Border / Expat / Diaspora Mode), every meal slot, food exchange row, and Food Glossary card displays the **Primary Heritage Food** alongside its **Nutritionally Equivalent Local Supermarket Substitute** (matched for protein, glycemic index, fatty acid profile, and micronutrients) plus ethnic/frozen grocery availability notes.
-- **Confirmed Decision 3 — Universal Global Coverage (Any Country to Any Country)**: Rather than hardcoding a single diaspora pair, the engine supports a universal global matrix of residence regions and culinary heritages (Bangladesh, India, USA, Canada, UK, Europe, Middle East / GCC, East & Southeast Asia, Latin America, Mediterranean, Australia, and Custom Country entry).
+* **অপরিবর্তিত ফিচার (100% Unchanged Existing Features)**:
+  * সবার জন্য নির্ধারিত **৩০–৩২টি মূল ফাউন্ডেশনাল প্রশ্ন** (`ADULT_FOUNDATIONAL_QUESTIONS`: শারীরিক মাপকাঠি, শক্তি/নারী স্বাস্থ্য, খাদ্যাভ্যাস, গাট ও মেটাবলিজম, প্রকৃতি ও মন, এবং মেডিকেল সেফটি) **হুবহু অপরিবর্তিত ও কনস্ট্যান্ট** থাকবে।
+  * পূর্বের সব ডোমেইন, ক্রস-বর্ডার কুইজিন ইকুইভ্যালেন্স, লোকাল হার্ভেস্ট এবং স্মার্ট জিও-লোকেশন ফিচার সম্পূর্ণ অপরিবর্তিত থাকবে।
 
 ---
 
-## 1. Overview & Core Concept
+## ২. আন্ডারওয়েট ফোকাসড ১০টি বিশেষ প্রশ্ন (10 Dedicated Underweight Clinical Questions)
+৩০–৩২টি কনস্ট্যান্ট প্রশ্নের পর **`cohort_clinical` (আন্ডারওয়েট ও পুষ্টি ঘাটতি মূল্যায়ন)** ধাপে নিচের ১০টি বিশেষায়িত প্রশ্ন যুক্ত হবে:
 
-- **What It Does**:
-  - Allows any user living abroad (for example, a Bangladeshi living in the USA, an Indian in the UK, a Mexican in Canada, or an American in Japan) to receive a clinical diet chart built around their **own home-country cuisine** while adapting hydration, thermogenic spices, and Vitamin D / seasonal guidance to the **climate of their current country**, and mapping hard-to-find native ingredients to **exact nutritional equivalents sold in local supermarkets** (e.g., Walmart, Whole Foods, Costco, Tesco, Carrefour, Aldi, Woolworths).
-- **Target Audience / Persona**:
-  - Expatriates, immigrants, international students, travelers, and multicultural households worldwide who want clinical therapeutic nutrition using familiar home-cooked meals without struggling to source unavailable native ingredients.
-- **Key Value**:
-  - Eliminates the false choice between "eating unfamiliar local western/foreign diet food" and "guessing how to buy native ingredients abroad" by pairing every traditional dish with verified local grocery equivalents and macro-matched swaps.
-
----
-
-## 2. User Experience & Visual Design
-
-- **Key User Flows**:
-  1. **Dual Country & Cuisine Selector Bar (Assessment, Profile & Diet Header)**:
-     - Users see two clean, side-by-side selectors:
-       - **🌍 Current Residence Country (বর্তমান অবস্থানরত দেশ — আবহাওয়া ও সুপারমার্কেট)**: e.g., United States, United Kingdom, Canada, UAE / Saudi Arabia, Australia, Germany / EU, Japan, Bangladesh, India, etc.
-       - **🍲 Preferred Dietary Cuisine (পছন্দের খাবারের দেশ — ডায়েট মেনু)**: e.g., Bangladeshi (বাঙালি খাবার), Indian (North/South), Mediterranean, American / Western, Middle Eastern / Arabic, East Asian, Latin American, or Mixed Global.
-     - When `Residence Country !== Preferred Food Country`, a **Cross-Border Smart Substitution Banner** activates automatically, showing the active pairing (e.g., `Living in USA 🇺🇸 · Eating Bangladeshi Cuisine 🇧🇩 · Local Supermarket Equivalents Active`).
-  2. **Diet Chart Meal Cards & Food Exchange Table**:
-     - Each meal slot shows the **Primary Heritage Menu** (e.g., *Shing/Magur Jhol with Red Parboiled Rice & Lau Shak*) and an expandable/inline **Local Supermarket Equivalent Strip** for the user's current residence country (e.g., *US Supermarket Swap at Whole Foods / Walmart / H-Mart: Wild Catfish or Tilapia/Cod fillet + Red Cargo / Brown Basmati Rice + Bottle Gourd / Zucchini & Baby Spinach*).
-  3. **Food Glossary & Smart Bazaar Integration**:
-     - In the Food Glossary and Smart Bazaar shopping list, each item displays a **Local Grocery Equivalence line** tailored to the user's Residence Country, categorizing items into:
-       - *Available Fresh in Local Mainstream Supermarkets*
-       - *Available Frozen in Local Ethnic / International Aisles*
-       - *1:1 Nutritionally Equivalent Local Substitute (Macro & GI Matched)*
-- **Visual Identity & Theme**:
-  - *Aesthetic Direction*: High-precision clinical nutrition workspace with warm editorial clarity, single-elevation cards (`1px` subtle borders), and zero-pill inline metadata separated by `·` typographic dividers.
-  - *Color Palette & Mood*: Neutral slate/ivory surfaces (`#FFFFFF` / `#0F172A`), clinical emerald primary accents (`#059669`) for verified heritage foods, and warm amber/indigo indicators (`#D97706` / `#4F46E5`) for cross-border supermarket equivalents.
-  - *Typography & Hierarchy*: Clean bilingual sans-serif hierarchy for Bangla and English descriptions paired with `tabular-nums` monospace figures for macro comparisons (`kcal`, `Protein`, `GI`) between the native food and its local supermarket substitute.
-- **Interactive Feedback & Motion**:
-  - Changing either the **Current Residence Country** or **Preferred Food Country** immediately updates the Cross-Border Equivalence layer across the Diet Chart, Food Exchange Table, Smart Bazaar, and Food Glossary, with a one-tap **"Re-adapt Diet Chart for Location & Cuisine"** trigger.
+1. **ওজন স্বল্পতার ধরন ও সময়কাল (Weight Loss Pattern & Duration)**: ছোটবেলা থেকেই শুকনো/এক্টোমর্ফ (Constitutional/Genetic Vata), নাকি গত ৩–৬ মাসে হঠাৎ অনিচ্ছাকৃতভাবে ওজন কমে গেছে?
+2. **ওজন না বাড়ার সম্ভাব্য মূল কারণ (Root Cause Screening)**: হাইপারথাইরয়েডিজম/অতিরিক্ত মেটাবলিক বার্ন, ক্রনিক আইবিএস/ম্যালঅ্যাবজর্পশন/সিলিয়াক, নাকি টাইফয়েড/টিবি/ডায়রিয়া/ভাইরাল জ্বর পরবর্তী দুর্বলতা?
+3. **ক্ষুধা ও অগ্নিমান্দ্য (Appetite & Early Satiety)**: ক্ষুধা কেমন থাকে—একদম ক্ষুধা লাগে না, দুই-তিন লোকমা খেলেই পেট ভরে যায় (Early Satiety), নাকি প্রচুর খাওয়ার পরও ওজন বাড়ে না?
+4. **গাট শোষণ ও হজম ক্ষমতা (Gut Absorption & Malabsorption Check)**: দুধ, ঘি, মাংস বা ভারী খাবার খেলে কি পেট ফাঁপা, অম্বল বা খাওয়ার পরপরই নরম পায়খানা (Steatorrhea/IBS-D) হয়?
+5. **পেশিক্ষয় ও শারীরিক স্ট্যামিনা (Sarcopenia & Muscle Wasting)**: হাত-পা ও কাঁধের পেশি শুকিয়ে যাওয়া, অল্প পরিশ্রমেই হাঁপিয়ে ওঠা বা হাত-পা কাঁপার সমস্যা আছে কি?
+6. **ক্যালোরি-ডেন্স খাবারের সহনশীলতা (Caloric Density Tolerance)**: ওজন বৃদ্ধির জন্য কোন খাবারগুলো সহজে হজম করতে পারেন (দেশি ঘি ও মাখন, দুধ/দই/পনির, বাদাম-সিডস ও খেজুর, নাকি ডিম-মাছ-মুরগি)?
+7. **খাবারের ফ্রিকোয়েন্সি ও মিল স্কিপিং (Meal Frequency & Skipping Habits)**: দিনে কয়বার খাবার খাওয়া হয় এবং ব্যস্ততা বা অনিচ্ছার কারণে সকালের নাস্তা বা দুপুরের খাবার বাদ পড়ে কি না?
+8. **মাইক্রোনিউট্রিয়েন্ট ঘাটতির লক্ষণ (Micronutrient Deficiency Signs)**: অতিরিক্ত চুল পড়া, নখ ভেঙে যাওয়া, চোখের নিচে কালচে ভাব/রক্তশূন্যতা (Anemia), কিংবা হাড় ও জয়েন্টে ব্যথা আছে কি?
+9. **ঘুমের মান ও নার্ভাস স্ট্রেস (Cortisol & Nervous Exhaustion)**: রাতের ঘুম কেমন হয় এবং অতিরিক্ত মানসিক চাপ বা দুশ্চিন্তার কারণে ক্ষুধা নষ্ট হয়ে যায় কি না?
+10. **লক্ষ্যমাত্রা ও ওজন বৃদ্ধির গতি (Target Weight Gain Strategy)**: স্বাস্থ্যকর উপায়ে মাসে ১.৫–২ কেজি (ধীরে ও টেকসই লিন মাসল বৃদ্ধি) নাকি মাসে ২.৫–৩ কেজি (দ্রুত রিকভারি ও টিস্যু রিবিল্ডিং) লক্ষ্য নির্ধারণ করতে চান?
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
-
-- **Decision 1: Decoupling Environmental Context from Culinary Identity**
-  - *Chosen Approach*: Store `residenceCountry` and `preferredCuisineCountry` as two distinct first-class attributes on the user's health profile, plus a `crossBorderSubstitutionMode` setting (`auto_equivalent` | `strict_heritage_only` | `hybrid_meals`).
-  - *Why*: Physical location dictates temperature, humidity, daylight hours (Vitamin D), and local grocery store chains, whereas cultural food identity dictates gut microbiome familiarity, spice tolerance, and long-term diet compliance.
-  - *Alternatives Considered*: Using GPS location alone to pick both weather and food—rejected because it forces expatriates to eat unfamiliar foreign meals and causes rapid diet drop-off.
-- **Decision 2: Hybrid Deterministic + AI Global Food Equivalence Engine**
-  - *Chosen Approach*: Build a comprehensive deterministic **Global Cross-Border Food Equivalence Matrix** covering major staple categories (freshwater/marine fish, rice & ancient grains, leafy greens, gourds & vegetables, lentils/legumes, cooking oils, and fermented gut foods) across global regions, combined with prompt-grounded AI generation when a user's personal Gemini account is active.
-  - *Why*: Guarantees instant, zero-latency, clinically accurate supermarket substitutes even offline or without AI network calls, while allowing unlimited custom country pairs when AI is enabled.
+## ৩. ঐচ্ছিক ল্যাব মার্কার ও হাই-ক্যালোরি নিউট্রিয়েন্ট বুস্টার
+* **ল্যাব মার্কার (`COHORT_LAB_MARKERS.underweight_nutrition`)**:
+  * **Hemoglobin (Hb)** (রক্তশূন্যতা ও অক্সিজেন পরিবহন যাচাই)
+  * **TSH / Free T4** (হাইপারথাইরয়েডিজম বা অতিরিক্ত মেটাবলিক বার্ন স্ক্রিনিং)
+  * **Serum Albumin / Total Protein** (পেশিক্ষয় ও প্রোটিন ম্যালনিউট্রিশন যাচাই)
+  * **Vitamin D & Vitamin B12** (হাড়ের ঘনত্ব, স্নায়ু ও মেটাবলিক অ্যাক্টিভেশন)
+* **হাই-ক্যালোরি ও বৃংহণ (Brumhana) নিউট্রিয়েন্ট বুস্টার (`COHORT_NUTRIENT_BOOSTERS.underweight_nutrition`)**:
+  * **খেজুর-বাদাম-তিল ও দেশি ঘি এনার্জি বল (Calorie-Dense Brumhana Bites)**
+  * **ছাতু, কলা ও টক দই/দুধের প্রো-অ্যাবজর্পশন শেক (Lean Mass Recovery Shake)**
+  * **আদা-জিরা-লেবু অগ্নি দীপন প্রি-মিল টনিক (Gut Absorption & Enzyme Primer)**
+  * **ডিম, দেশি মুরগির স্টু ও মুগ ডালের অ্যামিনো রিকভারি স্যুপ (Sarcopenia Rebuilder)**
 
 ---
 
-## 4. Technical Architecture & Data Strategy *(Technical Reference)*
-
-- **Architecture & Component Diagram**:
-
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                   USER HEALTH PROFILE & GLOBAL CONTEXT                     │
-│  • residenceCountry (Climate, Season, Local Supermarket Ecosystem)         │
-│  • preferredCuisineCountry (Cultural Meals, Recipes, Traditional Staples)  │
-│  • crossBorderMode ('dual_equivalent' | 'heritage_frozen' | 'hybrid')      │
-└───────────────────┬────────────────────────────────────┬───────────────────┘
-                    │                                    │
-                    ▼                                    ▼
-┌───────────────────────────────────────┐  ┌─────────────────────────────────┐
-│  CLIMATE & METABOLIC ADAPTER          │  │ GLOBAL FOOD EQUIVALENCE ENGINE  │
-│  • Weather & Hydration Adjustment     │  │ • Heritage Food Database        │
-│  • Seasonal Dosha & Vitamin D Cues    │  │ • Macro & GI-Matched Local Swap │
-│  • Local Timezone Meal Slot Sync      │  │ • Mainstream vs Ethnic Store Map│
-└───────────────────┬───────────────────┘  └─────────────────┬───────────────┘
-                    │                                        │
-                    └───────────────────┬────────────────────┘
-                                        ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│                        UNIFIED USER INTERFACE                              │
-│  ┌──────────────────────┐ ┌──────────────────────┐ ┌────────────────────┐  │
-│  │ Dual Country/Cuisine │ │ Diet Chart & Meal    │ │ Food Glossary &    │  │
-│  │ Selector Bar         │ │ Equivalent Swaps     │ │ Smart Bazaar List  │  │
-│  └──────────────────────┘ └──────────────────────┘ └────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────────┘
-```
-
-- **Data Model & State**:
-  - Extend `HealthProfile` with:
-    - `residenceCountry`: Country/region code & label where the user currently lives (e.g., `'US'`, `'GB'`, `'CA'`, `'AE'`, `'AU'`, `'EU'`, `'JP'`, `'BD'`, `'IN'`, or custom country name).
-    - `preferredCuisineCountry`: Country/culture of the food the user wants to eat (e.g., `'BD'`, `'IN'`, `'MED'`, `'US'`, `'ME'`, `'EA'`, `'LATAM'`, or custom).
-    - `supermarketSubstituteMode`: `'show_equivalents'` (default) | `'ethnic_frozen_only'` | `'hybrid'`.
-  - Extend `Meal` and `FoodExchangeRow` with optional `localSupermarketSwap` metadata (`substituteName`, `supermarketChains`, `nutritionalParityNote`, `availabilityType`).
-- **Interactive Component & State Mapping**:
-  - **Dual Country & Cuisine Switcher Component**: Reusable control bar embedded in `DietView`, `ProfileView`, `CohortAssessmentForm`, and `FoodRecognitionView` allowing instant switching of Residence Country and Preferred Food Country with persistent storage in `localStorage` and Service Worker offline cache.
-  - **Cross-Border Equivalence Resolver**: Pure service function that takes `(foodItemOrMeal, preferredCuisineCountry, residenceCountry, lang)` and returns the localized supermarket equivalent, store chain examples (e.g., *Walmart / Whole Foods / Costco* in US; *Tesco / Sainsbury's / Asda* in UK; *Loblaws / Costco* in Canada; *Carrefour / Lulu* in UAE/GCC; *Woolworths / Coles* in Australia), and clinical macro parity note.
+## ৪. ডায়েট চার্ট জেনারেশন ইঞ্জিন আপডেট
+* **সমন্বিত ৩-স্তরের ক্লিনিক্যাল ডায়েট প্ল্যান**:
+  1. **গাট অগ্নি দীপন (Digestive & Absorptive Priming)**: ভারী খাবার দেওয়ার আগে হজম ও পুষ্টি শোষণ (Villi absorption) বাড়ানোর খাবার ও মসলা।
+  2. **হেলদি ক্যালোরিক সারপ্লাস (+৪০০ থেকে +৭০০ kcal/day)**: জাঙ্ক ফুড বা ক্ষতিকর ট্রান্স-ফ্যাট ছাড়া স্বাস্থ্যকর ফ্যাট (দেশি ঘি, নারিকেল, বাদাম) ও জটিল কার্বোহাইড্রেটের সমন্বয়।
+  3. **লিন মাসল ও টিস্যু বিল্ডিং (Brumhana Therapy)**: প্রতি বেলায় সহজে শোষণযোগ্য প্রোটিন ও মাইক্রোনিউট্রিয়েন্ট নিশ্চিত করা।

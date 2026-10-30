@@ -700,7 +700,14 @@ export class GeminiService {
 
     let totalTargetCalories = bmr;
     let caloriesInstruction = "";
-    if (currentPhase === 1) {
+    const isUnderweightCohort = profile.cohortType === "underweight_nutrition";
+
+    if (isUnderweightCohort) {
+      const gainStrategy = profile.answers?.["uw_target_gain_strategy"] || "steady_lean_gain";
+      const surplus = gainStrategy === "accelerated_brumhana" ? 600 : 480;
+      totalTargetCalories = Math.max(1950, bmr + surplus);
+      caloriesInstruction = `Underweight Brumhana Protocol (Healthy Caloric Surplus + Lean Muscle Building + Gut Agni Deepana): The total daily calorie target must be BMR + ${surplus} (${totalTargetCalories} kcal).`;
+    } else if (currentPhase === 1) {
       totalTargetCalories = bmr + 100;
       caloriesInstruction = `Phase 1 (Detox): The total daily calorie target must be EXACTLY BMR + 100 (${totalTargetCalories} kcal).`;
     } else if (currentPhase === 2) {
@@ -716,10 +723,12 @@ export class GeminiService {
 
     // Determine Meal Frequency (3 or 4 meals)
     const defaultGuide = this.getDefaultTrafficLightGuide(profile);
-    const mealFrequency: 3 | 4 =
-      profile.mealFrequency || defaultGuide.recommendedMealFrequency;
-    const dinnerCarbRule =
-      profile.dinnerCarbRule || defaultGuide.recommendedDinnerCarbRule;
+    const mealFrequency: 3 | 4 = isUnderweightCohort
+      ? 4
+      : profile.mealFrequency || defaultGuide.recommendedMealFrequency;
+    const dinnerCarbRule = isUnderweightCohort
+      ? "cereal_allowed"
+      : profile.dinnerCarbRule || defaultGuide.recommendedDinnerCarbRule;
     const hasHypoacidity =
       profile.hasHypoacidity !== undefined
         ? profile.hasHypoacidity
@@ -771,7 +780,9 @@ export class GeminiService {
       .map((i) => (lang === "bn" ? i.nameBn : i.nameEn));
 
     // Fat & Cooking Oil Math (e.g., if total fat is 70g -> 20g from Ghee/Cooking Oil, 50g from Dietary Sources)
-    const totalProteinGrams = Math.round(profile.weight || 65);
+    const totalProteinGrams = isUnderweightCohort
+      ? Math.max(70, Math.round((profile.weight || 48) * 1.55))
+      : Math.round(profile.weight || 65);
     // Calculate daily fat requirement (approx 30-35% of calories or ~60-70g)
     const totalDailyFatGrams = Math.max(
       45,

@@ -156,6 +156,49 @@ export class CohortDietEngine {
           'Cut industrial seed oils, table sugar, and refined grains to allow liver de-steatosis and restore insulin sensitivity.',
         prohibitedFoods: ['সয়াবিন/পাম তেল', 'সাদা চিনিযুক্ত মিষ্টি ও বেকারি', 'অতিরিক্ত সাদা চাল'],
       });
+    } else if (cohort === 'underweight_nutrition') {
+      alerts.push({
+        id: 'uw_clean_brumhana_surplus',
+        severity: 'info',
+        titleBn: 'বৃংহণ (Brumhana) পুষ্টি নীতি: ফাস্টফুড বা ট্রান্স-ফ্যাট দিয়ে ওজন বাড়ানো নিষেধ',
+        titleEn: 'Clean Brumhana Rule: Healthy Caloric Surplus Without Junk Trans-Fats',
+        descriptionBn:
+          'ওজন বাড়ানোর জন্য ডুবো তেলে ভাজা খাবার, বেকারি বা চিনিযুক্ত কোমল পানীয় খেলে শুধু পেটে ভিসেরাল চর্বি ও ফ্যাটি লিভার তৈরি হয়। খাঁটি দেশি ঘি, ভেজানো বাদাম-খেজুর, ছাতু, ডিম, মাছ ও সহজপাচ্য শর্করার মাধ্যমে লিন মাসল গঠন করুন।',
+        descriptionEn:
+          'Never use deep-fried fast foods or refined sugars to gain weight—they cause visceral belly fat and gut dysbiosis. Build lean muscle mass using A2 ghee, soaked nuts, dates, roasted gram sattu, eggs, and fish.',
+        prohibitedFoods: ['ডুবো তেলে ভাজা ফাস্টফুড', 'কৃত্রিম মিষ্টি ও কোল্ড ড্রিংকস', 'পাম/সয়াবিন তেলের বেকারি খাবার'],
+      });
+
+      const rootCauses = profile.answers?.['uw_root_cause_screening'] || '';
+      if (rootCauses.includes('hyperthyroid')) {
+        alerts.push({
+          id: 'uw_hyperthyroid_alert',
+          severity: 'warning',
+          titleBn: 'হাইপারথাইরয়েড মেটাবলিক ওভারবার্ন সতর্কতা',
+          titleEn: 'Hyperthyroid Catabolic Overburn Shield',
+          descriptionBn:
+            'হাইপারথাইরয়েডিজমে শরীরের মেটাবলিক রেট অস্বাভাবিক বেশি থাকে। ক্যাফেইন (কড়া চা/কফি) বুক ধড়ফড়ানি ও ওজন ক্ষয় বাড়িয়ে দেয়—তাই ক্যাফেইন বর্জন করুন এবং দিনে ৪–৫ বার প্রোটিন ও স্নিগ্ধ ঘি-যুক্ত খাবার গ্রহণ করুন।',
+          descriptionEn:
+            'Hyperthyroidism accelerates catabolic burn. Avoid caffeine/strong coffee which worsens tachycardia and weight loss; maintain frequent protein and ghee-enriched meals.',
+          prohibitedFoods: ['কড়া কফি ও এনার্জি ড্রিংকস', 'অতিরিক্ত ঝাল ও উত্তেজক মসলা', 'দীর্ঘক্ষণ না খেয়ে থাকা'],
+        });
+      }
+
+      const gutMal = profile.answers?.['uw_gut_malabsorption'] || '';
+      const fatTol = profile.answers?.['uw_calorie_dense_tolerance'] || '';
+      if (gutMal === 'post_meal_ibs_rush' || gutMal === 'bloating_mucus_stool' || fatTol === 'milk_lactose_issue') {
+        alerts.push({
+          id: 'uw_agni_deepana_malabsorption_alert',
+          severity: 'warning',
+          titleBn: 'গাট ম্যালঅ্যাবজর্পশন ও অগ্নি দীপন প্রোটোকল (IBS / Lactose Guard)',
+          titleEn: 'Gut Malabsorption & Agni Deepana Protocol',
+          descriptionBn:
+            'আপনার অন্ত্রের শোষণ ক্ষমতা (Villi Absorption) দুর্বল থাকায় সরাসরি গরুর দুধ বা অতিরিক্ত ভারী খাবার খেলে পেট ফাঁপা বা লুজ মোশন হতে পারে। দুধের বদলে ঘোলের শরবত (Takra), ঘরে পাতা টক দই, ছাতু ও আদা-জিরা-ঘি ফোড়ন দেওয়া নরম খাবার গ্রহণ করুন।',
+          descriptionEn:
+            'Due to sensitive gut absorption/IBS, replace plain liquid cow milk with probiotic buttermilk (Takra), curd, roasted sattu, and ginger-cumin tempered easy-to-assimilate meals.',
+          prohibitedFoods: ['খালি পেটে সরাসরি কাঁচা/তরল দুধ', 'অতিরিক্ত কাঁচা সালাদ', 'বাসি ও গুরুপাক ভাজাপোড়া'],
+        });
+      }
     }
 
     return alerts;
